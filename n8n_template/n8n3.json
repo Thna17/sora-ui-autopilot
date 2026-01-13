@@ -1,0 +1,191 @@
+{
+  "name": "SoraQueue → Merge + Captions + Music (No Exec Nodes)",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const stdout = $json.stdout || '';\n// Example line:\n// ✅ Detected new file(s): ['20260111_1618_New Video_simple_compose_01kep5j...mp4']\nconst m = stdout.match(/Detected new file\\(s\\): \\['([^']+\\.mp4)'\\]/);\nif (!m) {\n  throw new Error('Could not extract downloaded filename from stdout.');\n}\n\nreturn [{\n  ...$json,\n  downloaded_file: m[1],\n  download_dir: '/Users/macbookpro/iCloud Drive (Archive) - 2/Desktop/Desktop - Brathna/Project - Coding/sora-autopilot/sora-ui-autopilot/downloads'\n}];"
+      },
+      "id": "CODE_EXTRACT_FILE",
+      "name": "Code: Extract downloaded file",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5056/process",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={\n  \"story_id\": {{$json.story_id}},\n  \"clip_filename\": {{$json.downloaded_file}},\n  \"clip_dir\": {{$json.download_dir}},\n  \"expected_clips\": 6,\n  \"music_path\": \"/Users/macbookpro/Music/background.mp3\"\n}",
+        "options": {
+          "timeout": 900000
+        }
+      },
+      "id": "HTTP_PIPELINE",
+      "name": "HTTP: Media pipeline (merge/captions/music)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        780,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.merged_done}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "IF_MERGED",
+      "name": "IF: merged done?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "={{$json.sheet_id}}",
+        "sheetName": "={{$json.sheet_name}}",
+        "updateKey": "id",
+        "updateValue": "={{$json.id}}",
+        "dataToSend": "autoMapInputData",
+        "options": {}
+      },
+      "id": "GS_UPDATE_DONE",
+      "name": "GS: Mark story MERGED_DONE",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1300,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  ...$json,\n  status: 'MERGED_DONE',\n  merged_video_path: $json.output_video || '',\n  merged_srt_path: $json.output_srt || ''\n}];"
+      },
+      "id": "CODE_MAP_DONE",
+      "name": "Code: Map DONE fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  ...$json,\n  status: 'CLIP_SAVED',\n  note: 'Clip stored; waiting for more clips to reach 6.'\n}];"
+      },
+      "id": "CODE_MAP_WAIT",
+      "name": "Code: Map WAIT fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "={{$json.sheet_id}}",
+        "sheetName": "={{$json.sheet_name}}",
+        "updateKey": "id",
+        "updateValue": "={{$json.id}}",
+        "dataToSend": "autoMapInputData",
+        "options": {}
+      },
+      "id": "GS_UPDATE_WAIT",
+      "name": "GS: Mark CLIP_SAVED",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1300,
+        460
+      ]
+    }
+  ],
+  "connections": {
+    "Code: Extract downloaded file": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Media pipeline (merge/captions/music)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Media pipeline (merge/captions/music)": {
+      "main": [
+        [
+          {
+            "node": "IF: merged done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: merged done?": {
+      "main": [
+        [
+          {
+            "node": "Code: Map DONE fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code: Map WAIT fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Map DONE fields": {
+      "main": [
+        [
+          {
+            "node": "GS: Mark story MERGED_DONE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Map WAIT fields": {
+      "main": [
+        [
+          {
+            "node": "GS: Mark CLIP_SAVED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionTimeout": 900
+  },
+  "versionId": "1"
+}

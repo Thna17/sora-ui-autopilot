@@ -1,0 +1,29 @@
+.DS_Store
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+venv/
+.venv/
+
+# Runtime artifacts
+logs/
+downloads/
+debug/
+chrome_profile/
+browser_context/
+auth_state.json
+data.csv
+
+# Editor/OS
+.idea/
+.vscode/

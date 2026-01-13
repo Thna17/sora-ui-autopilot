@@ -1,0 +1,394 @@
+{
+  "name": "SoraQueue → Selenium Bot Runner",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 5,
+              "unit": "minutes"
+            }
+          ]
+        }
+      },
+      "name": "Cron (every 5 min)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        240,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "lookup",
+        "documentId": "PUT_YOUR_SHEET_ID_HERE",
+        "sheetName": "SoraQueue",
+        "lookupColumn": "status",
+        "lookupValue": "NEW",
+        "returnAllMatches": false,
+        "options": {}
+      },
+      "name": "GS: Get 1 NEW row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        460,
+        260
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PUT_YOUR_GS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [],
+          "number": [],
+          "string": [
+            {
+              "value1": "={{$json.rowNumber}}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "name": "IF: found row?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "updated_at",
+              "value": "={{$now.toISO()}}"
+            },
+            {
+              "name": "status",
+              "value": "RUNNING"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set RUNNING fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "PUT_YOUR_SHEET_ID_HERE",
+        "sheetName": "SoraQueue",
+        "rowNumber": "={{$json.rowNumber}}",
+        "dataToSend": "autoMapInputData",
+        "options": {}
+      },
+      "name": "GS: Update row → RUNNING",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1120,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PUT_YOUR_GS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "command": "=/Users/brathna/projects/sora/.venv/bin/python /Users/brathna/projects/sora/scripts/sora_autopilot_selenium.py \"{{$json.prompt}}\"",
+        "options": {
+          "cwd": "/Users/brathna/projects/sora"
+        }
+      },
+      "name": "Execute Selenium Bot",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1350,
+        200
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.exitCode}}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "name": "IF: exitCode == 0",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 180,
+        "unit": "seconds"
+      },
+      "name": "Wait 3 minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "DONE"
+            },
+            {
+              "name": "updated_at",
+              "value": "={{$now.toISO()}}"
+            },
+            {
+              "name": "last_error",
+              "value": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set DONE fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        2010,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "PUT_YOUR_SHEET_ID_HERE",
+        "sheetName": "SoraQueue",
+        "rowNumber": "={{$node[\"GS: Get 1 NEW row\"].json.rowNumber}}",
+        "dataToSend": "autoMapInputData",
+        "options": {}
+      },
+      "name": "GS: Update row → DONE",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        2220,
+        140
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PUT_YOUR_GS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "FAILED"
+            },
+            {
+              "name": "updated_at",
+              "value": "={{$now.toISO()}}"
+            },
+            {
+              "name": "last_error",
+              "value": "={{$json.stderr || $json.error || 'Unknown error'}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set FAILED fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "PUT_YOUR_SHEET_ID_HERE",
+        "sheetName": "SoraQueue",
+        "rowNumber": "={{$node[\"GS: Get 1 NEW row\"].json.rowNumber}}",
+        "dataToSend": "autoMapInputData",
+        "options": {}
+      },
+      "name": "GS: Update row → FAILED",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        2010,
+        280
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "PUT_YOUR_GS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Cron (every 5 min)": {
+      "main": [
+        [
+          {
+            "node": "GS: Get 1 NEW row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Get 1 NEW row": {
+      "main": [
+        [
+          {
+            "node": "IF: found row?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: found row?": {
+      "main": [
+        [
+          {
+            "node": "Set RUNNING fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Set RUNNING fields": {
+      "main": [
+        [
+          {
+            "node": "GS: Update row → RUNNING",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Update row → RUNNING": {
+      "main": [
+        [
+          {
+            "node": "Execute Selenium Bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Selenium Bot": {
+      "main": [
+        [
+          {
+            "node": "IF: exitCode == 0",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: exitCode == 0": {
+      "main": [
+        [
+          {
+            "node": "Wait 3 minutes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set FAILED fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 3 minutes": {
+      "main": [
+        [
+          {
+            "node": "Set DONE fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set DONE fields": {
+      "main": [
+        [
+          {
+            "node": "GS: Update row → DONE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set FAILED fields": {
+      "main": [
+        [
+          {
+            "node": "GS: Update row → FAILED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionTimeout": 7200,
+    "saveExecutionProgress": true
+  },
+  "versionId": "1"
+}

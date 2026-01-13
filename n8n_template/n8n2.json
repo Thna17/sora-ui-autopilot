@@ -1,0 +1,634 @@
+{
+  "name": "SoraQueue → Selenium Bot Runner → Merge(6) + Whisper Captions + Audio",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manualTrigger",
+      "name": "When clicking 'Execute workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        180,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": "TODO_SHEET_ID",
+        "sheetName": "TODO_SHEET_TAB_NAME",
+        "filtersUi": {
+          "values": [
+            {
+              "lookupColumn": "status",
+              "lookupValue": "NEW"
+            }
+          ]
+        },
+        "options": {
+          "returnAll": false,
+          "limit": 1
+        }
+      },
+      "id": "gsGetNew",
+      "name": "GS: Get 1 NEW row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        400,
+        260
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TODO",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json && Object.keys($json).length > 0}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "ifFoundRow",
+      "name": "IF: found row?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        620,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "RUNNING"
+            },
+            {
+              "name": "updated_at",
+              "value": "={{new Date().toISOString()}}"
+            }
+          ]
+        }
+      },
+      "id": "setRunning",
+      "name": "Set RUNNING fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        840,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "TODO_SHEET_ID",
+        "sheetName": "TODO_SHEET_TAB_NAME",
+        "key": "id",
+        "value": "={{$json.id}}",
+        "dataToSend": "autoMapInputData",
+        "options": {}
+      },
+      "id": "gsUpdateRunning",
+      "name": "GS: Update row → RUNNING",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1060,
+        260
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TODO",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:5055/run",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ { \"prompt\": $json.prompt, \"rowId\": $json.id } }}",
+        "options": {
+          "timeout": 3600000
+        }
+      },
+      "id": "httpRunner",
+      "name": "HTTP Request (Selenium Runner)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1280,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $json;\n// HTTP node returns an array in your example, but n8n often returns object.\n// Normalize to first item if array.\nconst item = Array.isArray(res) ? res[0] : res;\nconst stdout = item.stdout || \"\";\n\n// Extract newest mp4 name from stdout line:\n// ✅ Detected new file(s): ['xxxx.mp4']\nconst m = stdout.match(/Detected new file\\(s\\): \\['([^']+\\.mp4)'\\]/);\nconst filename = m ? m[1] : \"\";\n\n// IMPORTANT: adjust to your real download folder\nconst projectDownloadDir = \"/Users/macbookpro/iCloud Drive (Archive) - 2/Desktop/Desktop - Brathna/Project - Coding/sora-autopilot/sora-ui-autopilot/downloads\";\nconst localPath = filename ? `${projectDownloadDir}/${filename}` : \"\";\n\nreturn [{\n  rowId: item.rowId || \"\",\n  ok: !!item.ok,\n  exitCode: item.exitCode ?? null,\n  stdout,\n  stderr: item.stderr || \"\",\n  downloaded_filename: filename,\n  local_path: localPath,\n  downloadDir: projectDownloadDir,\n  updated_at: new Date().toISOString(),\n}];"
+      },
+      "id": "codeParseStdout",
+      "name": "Code: Parse stdout → local_path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "id",
+              "value": "={{$node[\"GS: Get 1 NEW row\"].json.id}}"
+            },
+            {
+              "name": "story_id",
+              "value": "={{$node[\"GS: Get 1 NEW row\"].json.story_id}}"
+            },
+            {
+              "name": "scene",
+              "value": "={{$node[\"GS: Get 1 NEW row\"].json.scene}}"
+            },
+            {
+              "name": "status",
+              "value": "DONE"
+            },
+            {
+              "name": "local_path",
+              "value": "={{$json.local_path}}"
+            },
+            {
+              "name": "updated_at",
+              "value": "={{$json.updated_at}}"
+            }
+          ]
+        }
+      },
+      "id": "setDoneFields",
+      "name": "Set DONE fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        1720,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "TODO_SHEET_ID",
+        "sheetName": "TODO_SHEET_TAB_NAME",
+        "key": "id",
+        "value": "={{$json.id}}",
+        "dataToSend": "autoMapInputData",
+        "options": {}
+      },
+      "id": "gsUpdateDone",
+      "name": "GS: Update row → DONE",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1940,
+        260
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TODO",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": "TODO_SHEET_ID",
+        "sheetName": "TODO_SHEET_TAB_NAME",
+        "filtersUi": {
+          "values": [
+            {
+              "lookupColumn": "story_id",
+              "lookupValue": "={{$node[\"Set DONE fields\"].json.story_id}}"
+            },
+            {
+              "lookupColumn": "status",
+              "lookupValue": "DONE"
+            }
+          ]
+        },
+        "options": {
+          "returnAll": true
+        }
+      },
+      "id": "gsGetAllDoneForStory",
+      "name": "GS: Get DONE clips (same story_id)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        2160,
+        260
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TODO",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\n// rows contain all DONE clips for this story_id\n// Require 6 clips\nconst storyId = rows[0]?.story_id || \"\";\nif (!storyId) return [{ ready:false, reason:\"missing story_id\", clips: [] }];\n\n// sort by numeric scene\nrows.sort((a,b) => Number(a.scene||0) - Number(b.scene||0));\n\nconst clips = rows\n  .map(r => ({ scene: r.scene, local_path: r.local_path }))\n  .filter(x => x.local_path);\n\nreturn [{\n  ready: clips.length >= 6,\n  story_id: storyId,\n  clips,\n  clipCount: clips.length,\n}];"
+      },
+      "id": "codeCheck6",
+      "name": "Code: Check 6 clips + sort",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2380,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.ready}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "ifReady6",
+      "name": "IF: have 6 clips?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const storyId = $json.story_id;\nconst clips = $json.clips.slice(0,6);\n\nconst outDir = `/Users/macbookpro/iCloud Drive (Archive) - 2/Desktop/Desktop - Brathna/Project - Coding/sora-autopilot/sora-ui-autopilot/outputs/${storyId}`;\nconst concatFile = `${outDir}/concat.txt`;\nconst merged = `${outDir}/${storyId}_merged.mp4`;\nconst audioWav = `${outDir}/${storyId}_audio.wav`;\nconst srt = `${outDir}/${storyId}.srt`;\nconst captioned = `${outDir}/${storyId}_captioned.mp4`;\nconst final = `${outDir}/${storyId}_final.mp4`;\n\nreturn [{\n  story_id: storyId,\n  outDir,\n  concatFile,\n  merged,\n  audioWav,\n  srt,\n  captioned,\n  final,\n  clips,\n  // set your bg music here:\n  bgMusic: `/Users/macbookpro/iCloud Drive (Archive) - 2/Desktop/Desktop - Brathna/Project - Coding/sora-autopilot/sora-ui-autopilot/assets/bg.mp3`\n}];"
+      },
+      "id": "codePaths",
+      "name": "Code: Build paths",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2820,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "command": "mkdir -p \"{{$json.outDir}}\" && rm -f \"{{$json.concatFile}}\" && \npython3 - <<'PY'\nimport os\nclips = {{ JSON.stringify($json.clips) }}\nconcat_path = \"{{$json.concatFile}}\"\nwith open(concat_path, 'w', encoding='utf-8') as f:\n    for c in clips:\n        p = c['local_path'].replace('\\\\', '/')\n        f.write(f\"file '{p}'\\n\")\nprint('WROTE', concat_path)\nPY"
+      },
+      "id": "execWriteConcat",
+      "name": "Exec: Write concat.txt",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        3040,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "command": "ffmpeg -y -f concat -safe 0 -i \"{{$json.concatFile}}\" -c copy \"{{$json.merged}}\""
+      },
+      "id": "execMerge",
+      "name": "Exec: FFmpeg merge 6 clips",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        3260,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "command": "ffmpeg -y -i \"{{$json.merged}}\" -vn -ac 1 -ar 16000 -c:a pcm_s16le \"{{$json.audioWav}}\""
+      },
+      "id": "execExtractAudio",
+      "name": "Exec: Extract audio.wav",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        3480,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "command": "whisper \"{{$json.audioWav}}\" --model small --output_format srt --output_dir \"{{$json.outDir}}\" --fp16 False && \n# rename whisper output to our fixed name\nSRT=$(ls -1 \"{{$json.outDir}}\"/*.srt | head -n 1) && cp \"$SRT\" \"{{$json.srt}}\""
+      },
+      "id": "execWhisper",
+      "name": "Exec: Whisper → SRT",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        3700,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "command": "ffmpeg -y -i \"{{$json.merged}}\" -vf \"subtitles='{{$json.srt}}'\" -c:a copy \"{{$json.captioned}}\""
+      },
+      "id": "execBurnCaptions",
+      "name": "Exec: Burn captions",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        3920,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "command": "ffmpeg -y -i \"{{$json.captioned}}\" -i \"{{$json.bgMusic}}\" -filter_complex \"[1:a]aloop=loop=-1:size=2e+09,volume=0.25[a1];[0:a][a1]amix=inputs=2:duration=first:dropout_transition=3[a]\" -map 0:v -map \"[a]\" -shortest -c:v copy \"{{$json.final}}\""
+      },
+      "id": "execAddMusic",
+      "name": "Exec: Add background audio",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        4140,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "TODO_SHEET_ID",
+        "sheetName": "TODO_SHEET_TAB_NAME",
+        "key": "story_id",
+        "value": "={{$json.story_id}}",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "column": "final_video_path",
+              "value": "={{$json.final}}"
+            },
+            {
+              "column": "story_status",
+              "value": "MERGED_DONE"
+            },
+            {
+              "column": "updated_at",
+              "value": "={{new Date().toISOString()}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "gsUpdateStoryDone",
+      "name": "GS: Mark story MERGED_DONE",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        4360,
+        160
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "TODO",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "GS: Get 1 NEW row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Get 1 NEW row": {
+      "main": [
+        [
+          {
+            "node": "IF: found row?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: found row?": {
+      "main": [
+        [
+          {
+            "node": "Set RUNNING fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Set RUNNING fields": {
+      "main": [
+        [
+          {
+            "node": "GS: Update row → RUNNING",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Update row → RUNNING": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Selenium Runner)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Selenium Runner)": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse stdout → local_path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse stdout → local_path": {
+      "main": [
+        [
+          {
+            "node": "Set DONE fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set DONE fields": {
+      "main": [
+        [
+          {
+            "node": "GS: Update row → DONE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Update row → DONE": {
+      "main": [
+        [
+          {
+            "node": "GS: Get DONE clips (same story_id)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Get DONE clips (same story_id)": {
+      "main": [
+        [
+          {
+            "node": "Code: Check 6 clips + sort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Check 6 clips + sort": {
+      "main": [
+        [
+          {
+            "node": "IF: have 6 clips?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: have 6 clips?": {
+      "main": [
+        [
+          {
+            "node": "Code: Build paths",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Code: Build paths": {
+      "main": [
+        [
+          {
+            "node": "Exec: Write concat.txt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exec: Write concat.txt": {
+      "main": [
+        [
+          {
+            "node": "Exec: FFmpeg merge 6 clips",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exec: FFmpeg merge 6 clips": {
+      "main": [
+        [
+          {
+            "node": "Exec: Extract audio.wav",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exec: Extract audio.wav": {
+      "main": [
+        [
+          {
+            "node": "Exec: Whisper → SRT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exec: Whisper → SRT": {
+      "main": [
+        [
+          {
+            "node": "Exec: Burn captions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exec: Burn captions": {
+      "main": [
+        [
+          {
+            "node": "Exec: Add background audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exec: Add background audio": {
+      "main": [
+        [
+          {
+            "node": "GS: Mark story MERGED_DONE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "versionId": "1"
+}
