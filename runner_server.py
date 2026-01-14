@@ -1,1 +1,316 @@
-from scripts.runner_server import app
+from fastapi import FastAPI
+from pydantic import BaseModel, Field
+import os, sys, json, uuid, subprocess, threading, time
+from typing import Optional, Dict, Any, Union, List
+from pathlib import Path
+
+app = FastAPI()
+
+BASE_DIR = os.path.dirname(__file__)
+PYTHON = os.environ.get("SORA_PYTHON", sys.executable)
+
+# --- Scripts you run ---
+SORA_SCRIPT = os.environ.get(
+    "SORA_SCRIPT",
+    os.path.join(BASE_DIR, "scripts", "sora_autopilot_selenium.py")
+)
+
+MEDIA_SCRIPT = os.environ.get(
+    "SORA_MEDIA_SCRIPT",
+    os.path.join(BASE_DIR, "scripts", "media_pipeline.py")
+)
+
+# --- In-memory job stores ---
+JOBS: Dict[str, Dict[str, Any]] = {}        # for /run_async
+MEDIA_JOBS: Dict[str, Dict[str, Any]] = {}  # for /process
+
+
+# -----------------------
+# Shared: webhook POST helper
+# -----------------------
+def post_webhook(url: str, payload: dict, job_id: str | None = None, store: Dict[str, Any] | None = None):
+    try:
+        import urllib.request
+
+        clean_url = (url or "").strip()
+        if not clean_url:
+            print("[webhook] empty url, skipping")
+            return
+
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            clean_url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            body = resp.read().decode("utf-8", errors="ignore")
+            print(f"[webhook] POST {clean_url} -> {resp.status} {resp.reason} | {body[:300]}")
+
+            if job_id and store is not None:
+                store[job_id]["webhook"] = {"ok": True, "status": resp.status, "body": body[:2000]}
+
+    except Exception as e:
+        print(f"[webhook] FAILED POST {url}: {repr(e)}")
+        if job_id and store is not None:
+            store[job_id]["webhook"] = {"ok": False, "error": repr(e)}
+
+
+def parse_marker(stdout: str, marker="__RESULT__=") -> dict:
+    idx = (stdout or "").rfind(marker)
+    if idx == -1:
+        return {}
+    raw = stdout[idx + len(marker):].strip()
+    try:
+        return json.loads(raw)
+    except Exception:
+        return {"parseError": "failed to parse __RESULT__", "raw": raw[:4000]}
+
+
+# ============================================================
+# 1) SORA route: /run_async  (generate + download)
+# ============================================================
+class Job(BaseModel):
+    prompt: str
+    storyId: str
+    scene: int
+    rowId: Optional[Union[str, int]] = None
+    webhookUrl: Optional[str] = None
+
+
+def run_job_background(job_id: str, job: Job):
+    story_id = job.storyId.strip()
+    scene = int(job.scene)
+    row_id = str(job.rowId).strip() if job.rowId is not None else ""
+    prompt = (job.prompt or "").strip()
+
+    JOBS[job_id]["status"] = "running"
+    JOBS[job_id]["started_at"] = time.time()
+
+    cmd = [PYTHON, SORA_SCRIPT, prompt, row_id, story_id, str(scene)]
+    proc = subprocess.run(cmd, capture_output=True, text=True, env=os.environ.copy())
+
+    out = proc.stdout or ""
+    err = proc.stderr or ""
+    parsed = parse_marker(out)
+
+    result = {
+        "ok": proc.returncode == 0,
+        "exitCode": proc.returncode,
+        "jobId": job_id,
+        "rowId": row_id,
+        "storyId": story_id,
+        "scene": scene,
+        "stdout": out[-8000:],
+        "stderr": err[-8000:],
+        "result": parsed or {},
+    }
+
+    JOBS[job_id]["status"] = "done" if result["ok"] else "error"
+    JOBS[job_id]["finished_at"] = time.time()
+    JOBS[job_id]["result"] = result
+
+    # ✅ only callback after finished download
+    finished = bool(result.get("result", {}).get("finished"))
+    if job.webhookUrl and result["ok"] and finished:
+        callback_payload = {"jobId": job_id, "status": JOBS[job_id]["status"], **result}
+        post_webhook(job.webhookUrl, callback_payload, job_id=job_id, store=JOBS)
+
+
+@app.post("/run_async")
+def run_async(job: Job):
+    prompt = (job.prompt or "").strip()
+    story_id = (job.storyId or "").strip()
+    scene = int(job.scene)
+
+    if not prompt:
+        return {"ok": False, "error": "prompt is empty"}
+    if not story_id:
+        return {"ok": False, "error": "storyId is empty"}
+    if scene <= 0:
+        return {"ok": False, "error": "scene must be >= 1"}
+
+    job_id = uuid.uuid4().hex
+
+    JOBS[job_id] = {
+        "status": "queued",
+        "job": job.model_dump(),
+        "created_at": time.time(),
+        "result": None,
+    }
+
+    threading.Thread(target=run_job_background, args=(job_id, job), daemon=True).start()
+
+    return {
+        "ok": True,
+        "jobId": job_id,
+        "status": "queued",
+        "storyId": story_id,
+        "scene": scene,
+        "rowId": (job.rowId or ""),
+        "message": "Job accepted. Will callback webhookUrl ONLY when finished=true.",
+    }
+
+
+@app.get("/status/{job_id}")
+def status(job_id: str):
+    j = JOBS.get(job_id)
+    if not j:
+        return {"ok": False, "error": "job not found", "jobId": job_id}
+    return {
+        "ok": True,
+        "jobId": job_id,
+        "status": j["status"],
+        "created_at": j.get("created_at"),
+        "started_at": j.get("started_at"),
+        "finished_at": j.get("finished_at"),
+        "result": j.get("result"),
+    }
+
+
+# ============================================================
+# 2) MEDIA route: /process  (merge/captions/music)
+# ============================================================
+class ClipItem(BaseModel):
+    scene: Optional[int] = None
+    local_path: str
+
+
+class MediaJob(BaseModel):
+    storyId: str
+    clips: List[Union[str, ClipItem]] = Field(default_factory=list)
+
+    musicPath: Optional[str] = None
+    outputDir: Optional[str] = None
+
+    webhookUrl: Optional[str] = None
+
+
+def normalize_clips(clips: List[Union[str, ClipItem]]) -> List[str]:
+    out: List[str] = []
+    for c in clips:
+        if isinstance(c, str):
+            p = c.strip()
+            if p:
+                out.append(p)
+        else:
+            p = (c.local_path or "").strip()
+            if p:
+                out.append(p)
+    return out
+
+
+def run_media_background(job_id: str, job: MediaJob):
+    story_id = job.storyId.strip()
+    clips = normalize_clips(job.clips)
+    music = (job.musicPath or "").strip()
+    output_dir = (job.outputDir or "").strip()
+
+    MEDIA_JOBS[job_id]["status"] = "running"
+    MEDIA_JOBS[job_id]["started_at"] = time.time()
+
+    if not output_dir:
+        output_dir = os.path.join(BASE_DIR, "outputs", story_id)
+    os.makedirs(output_dir, exist_ok=True)
+
+    # create input json for media script (clean)
+    payload = {
+        "jobId": job_id,
+        "storyId": story_id,
+        "clips": clips,
+        "musicPath": music or None,
+        "outputDir": output_dir,
+    }
+    input_json_path = os.path.join(output_dir, f"media_input_{job_id}.json")
+    with open(input_json_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+    cmd = [PYTHON, MEDIA_SCRIPT, input_json_path]
+    print(f"DEBUG: cmd={cmd}", flush=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True, env=os.environ.copy())
+
+    out = proc.stdout or ""
+    err = proc.stderr or ""
+    print(f"DEBUG: proc.returncode={proc.returncode}, out={repr(out)}, err={repr(err)}", flush=True)
+    parsed = parse_marker(out)
+
+    ok = (proc.returncode == 0) and bool(parsed.get("merged_done"))
+
+    result = {
+        "ok": ok,
+        "exitCode": proc.returncode,
+        "jobId": job_id,
+        "storyId": story_id,
+        "stdout": out[-8000:],
+        "stderr": err[-8000:],
+        "result": parsed or {},
+    }
+
+    MEDIA_JOBS[job_id]["status"] = "done" if ok else "error"
+    MEDIA_JOBS[job_id]["finished_at"] = time.time()
+    MEDIA_JOBS[job_id]["result"] = result
+
+    if job.webhookUrl:
+        callback_payload = {"jobId": job_id, "status": MEDIA_JOBS[job_id]["status"], **result}
+        post_webhook(job.webhookUrl, callback_payload, job_id=job_id, store=MEDIA_JOBS)
+
+    # Always notify the media_done webhook
+    media_done_payload = {"jobId": job_id, "status": MEDIA_JOBS[job_id]["status"], **result}
+    post_webhook("http://localhost:5678/webhook/media_done", media_done_payload, job_id=job_id, store=MEDIA_JOBS)
+
+
+@app.post("/process")
+def process(job: MediaJob):
+    story_id = (job.storyId or "").strip()
+    clips = normalize_clips(job.clips)
+
+    if not story_id:
+        return {"ok": False, "error": "storyId is empty"}
+    if not clips:
+        return {"ok": False, "error": "clips is empty"}
+
+    # optional: validate files exist
+    missing = [p for p in clips if not Path(p).exists()]
+    if missing:
+        return {"ok": False, "error": f"missing clips: {missing[:3]}{'...' if len(missing) > 3 else ''}"}
+
+    job_id = uuid.uuid4().hex
+    MEDIA_JOBS[job_id] = {
+        "status": "queued",
+        "job": job.model_dump(),
+        "created_at": time.time(),
+        "result": None,
+    }
+
+    threading.Thread(target=run_media_background, args=(job_id, job), daemon=True).start()
+
+    return {
+        "ok": True,
+        "jobId": job_id,
+        "status": "queued",
+        "storyId": story_id,
+        "clipCount": len(clips),
+        "message": "Media job accepted. Will callback webhookUrl when merged_done=true.",
+    }
+
+
+@app.get("/process_status/{job_id}")
+def process_status(job_id: str):
+    j = MEDIA_JOBS.get(job_id)
+    if not j:
+        return {"ok": False, "error": "job not found", "jobId": job_id}
+    return {
+        "ok": True,
+        "jobId": job_id,
+        "status": j["status"],
+        "created_at": j.get("created_at"),
+        "started_at": j.get("started_at"),
+        "finished_at": j.get("finished_at"),
+        "result": j.get("result"),
+    }
+
+@app.get("/routes")
+def routes():
+    return sorted([f"{r.path} [{','.join(sorted(r.methods or []))}]" for r in app.router.routes])
