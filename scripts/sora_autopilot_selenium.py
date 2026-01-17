@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # sora_autopilot_selenium.py
 # Reliable flow:
-# Explore -> submit prompt -> Library -> newest detail -> Download -> Video (Watermark)
+# Explore -> submit prompt -> Drafts -> newest detail -> Download -> Video (Watermark)
 # -> wait export (90s expected + grace) -> click modal Download -> detect download start -> wait finish
 #
 # No webhook. Strong retries + diagnostics.
@@ -13,6 +13,7 @@ import traceback
 from datetime import datetime
 import re
 from pathlib import Path
+from urllib.parse import urljoin
 import json
 
 import undetected_chromedriver as uc
@@ -34,12 +35,22 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 PROFILE_DIR = os.path.join(BASE_DIR, "chrome_profile")
 
 SORA_EXPLORE_URL = "https://sora.chatgpt.com/explore"
-SORA_LIBRARY_URL = "https://sora.chatgpt.com/library"
+SORA_DRAFTS_URL = "https://sora.chatgpt.com/drafts"
 
 WAIT_AFTER_SUBMIT_SECONDS = int(os.environ.get("SORA_WAIT_SECONDS", "60"))
 POST_SUBMIT_WAIT_SECONDS = int(os.environ.get("SORA_POST_SUBMIT_WAIT", "8"))
-LIBRARY_POLL_SECONDS = int(os.environ.get("SORA_LIBRARY_POLL_SECONDS", "10"))
-LIBRARY_MAX_WAIT_SECONDS = int(os.environ.get("SORA_LIBRARY_MAX_WAIT", "240"))
+DRAFTS_POLL_SECONDS = int(
+    os.environ.get(
+        "SORA_DRAFTS_POLL_SECONDS",
+        os.environ.get("SORA_LIBRARY_POLL_SECONDS", "10"),
+    )
+)
+DRAFTS_MAX_WAIT_SECONDS = int(
+    os.environ.get(
+        "SORA_DRAFTS_MAX_WAIT",
+        os.environ.get("SORA_LIBRARY_MAX_WAIT", "240"),
+    )
+)
 
 # You asked: prepare for download 90s.
 # Reality: sometimes it takes longer. We'll do:
@@ -421,23 +432,59 @@ def sora_type_and_submit(driver, prompt: str, logger: RunLogger, timeout=30):
 
 
 # -----------------------
-# Library: newest link
+# Drafts: newest link
 # -----------------------
-def get_newest_tile_link(driver, logger: RunLogger, timeout=60) -> str:
+def get_newest_draft_link(driver, logger: RunLogger, timeout=60) -> str:
     wait = WebDriverWait(driver, timeout)
-    driver.get(SORA_LIBRARY_URL)
+    driver.get(SORA_DRAFTS_URL)
     wait_body(driver, 60)
 
-    tile_link = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.group\\/tile a[href^='/g/']")))
-    href = tile_link.get_attribute("href")
+    selectors = [
+        (By.CSS_SELECTOR, "a[href^='/d/']"),
+        (By.CSS_SELECTOR, "a[href*='/d/']"),
+        (By.CSS_SELECTOR, "a[href*='sora.chatgpt.com/d/']"),
+    ]
+
+    def find_links(drv):
+        for by, sel in selectors:
+            try:
+                els = drv.find_elements(by, sel)
+            except Exception:
+                continue
+            visible = [el for el in els if el.is_displayed()]
+            if visible:
+                return visible
+        return []
+
+    links = wait.until(lambda d: find_links(d))
+    candidates = []
+    for el in links:
+        try:
+            href = el.get_attribute("href") or ""
+            if not href:
+                continue
+            rect = el.rect or {}
+            y = rect.get("y", 1e9)
+            x = rect.get("x", 1e9)
+            candidates.append((y, x, href))
+        except Exception:
+            continue
+    if not candidates:
+        save_debug(driver, logger, "drafts_tile_missing")
+        raise RuntimeError("No visible draft links found.")
+
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    href = candidates[0][2]
+    if href.startswith("/"):
+        href = urljoin(SORA_DRAFTS_URL, href)
     if not href:
         raise RuntimeError("Newest tile link found but href is empty.")
 
-    logger.log(f"✅ Found newest tile link: {href}")
+    logger.log(f"✅ Found newest draft link: {href}")
     return href
 
 
-def wait_for_newest_tile_change(
+def wait_for_newest_draft_change(
     driver,
     logger: RunLogger,
     previous_link: str | None,
@@ -445,14 +492,14 @@ def wait_for_newest_tile_change(
     poll_seconds: int,
 ) -> str:
     """
-    Poll Library until a new newest tile appears or we hit max wait.
+    Poll Drafts until a new newest tile appears or we hit max wait.
     This shortens the fixed wait when generations finish quickly.
     """
     end = time.time() + max_wait_seconds
     last_link = previous_link
     while time.time() < end:
         try:
-            newest = get_newest_tile_link(driver, logger, timeout=30)
+            newest = get_newest_draft_link(driver, logger, timeout=30)
             if newest and newest != last_link:
                 return newest
             last_link = newest
@@ -713,12 +760,14 @@ def run_one(prompt: str, row_id: str | None):
     start_ts = time.time()
 
     try:
-        logger.log("📚 Library → get newest tile link (baseline)...")
+        logger.log("📝 Drafts → get newest tile link (baseline)...")
         try:
-            baseline_link = get_newest_tile_link(driver, logger, timeout=30)
+            baseline_link = get_newest_draft_link(driver, logger, timeout=30)
         except Exception:
             baseline_link = None
-            logger.log("⚠️ Baseline link not available (continuing).")
+            logger.log("⚠️ Baseline link not available; stopping before Explore.")
+            logger.log("Browser left open for debugging.")
+            return 1
 
         logger.log("🌐 Opening Sora Explore...")
         driver.get(SORA_EXPLORE_URL)
@@ -732,27 +781,27 @@ def run_one(prompt: str, row_id: str | None):
         logger.log("✍️ Typing prompt + submitting...")
         sora_type_and_submit(driver, prompt, logger)
 
-        logger.log(f"⏳ Waiting {POST_SUBMIT_WAIT_SECONDS}s before Library polling...")
+        logger.log(f"⏳ Waiting {POST_SUBMIT_WAIT_SECONDS}s before Drafts polling...")
         time.sleep(POST_SUBMIT_WAIT_SECONDS)
-        logger.log(f"⏳ Waiting up to {WAIT_AFTER_SUBMIT_SECONDS}s for new Library item...")
-        newest_link = wait_for_newest_tile_change(
+        logger.log(f"⏳ Waiting up to {WAIT_AFTER_SUBMIT_SECONDS}s for new Drafts item...")
+        newest_link = wait_for_newest_draft_change(
             driver,
             logger,
             baseline_link,
             WAIT_AFTER_SUBMIT_SECONDS,
-            LIBRARY_POLL_SECONDS,
+            DRAFTS_POLL_SECONDS,
         )
         if not newest_link:
-            logger.log(f"⏳ Still no new item; continuing up to {LIBRARY_MAX_WAIT_SECONDS}s total...")
-            newest_link = wait_for_newest_tile_change(
+            logger.log(f"⏳ Still no new item; continuing up to {DRAFTS_MAX_WAIT_SECONDS}s total...")
+            newest_link = wait_for_newest_draft_change(
                 driver,
                 logger,
                 baseline_link,
-                LIBRARY_MAX_WAIT_SECONDS,
-                LIBRARY_POLL_SECONDS,
+                DRAFTS_MAX_WAIT_SECONDS,
+                DRAFTS_POLL_SECONDS,
             )
         if not newest_link:
-            logger.log("⚠️ No new Library item detected yet; skipping download attempt.")
+            logger.log("⚠️ No new Drafts item detected yet; skipping download attempt.")
             logger.log("Browser left open for debugging.")
             return 1
 
