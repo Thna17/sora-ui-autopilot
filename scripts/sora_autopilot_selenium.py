@@ -519,6 +519,80 @@ def _hover_to_show_topbar(driver):
         pass
 
 
+def open_overflow_menu(driver, logger: RunLogger, timeout=12) -> bool:
+    wait = WebDriverWait(driver, timeout)
+
+    def visible_buttons():
+        buttons = driver.find_elements(By.CSS_SELECTOR, "button[aria-haspopup='menu']")
+        return [btn for btn in buttons if btn.is_displayed()]
+
+    candidates = []
+    try:
+        dialog_buttons = driver.find_elements(By.XPATH, "//div[@role='dialog']//button[@aria-haspopup='menu']")
+        candidates.extend([btn for btn in dialog_buttons if btn.is_displayed()])
+    except Exception:
+        pass
+
+    if not candidates:
+        candidates = visible_buttons()
+
+    if not candidates:
+        logger.log("⚠️ Overflow menu button not found.")
+        return False
+
+    def has_three_dots(btn) -> bool:
+        try:
+            paths = btn.find_elements(By.CSS_SELECTOR, "svg path")
+        except Exception:
+            return False
+        for p in paths:
+            d = (p.get_attribute("d") or "").replace(" ", "")
+            if "M3" in d and "12a2" in d and "1" in d and "4" in d and "7" in d:
+                return True
+        return False
+
+    def is_settings(btn) -> bool:
+        label = (btn.get_attribute("aria-label") or "").lower()
+        return "settings" in label
+
+    prioritized = [btn for btn in candidates if has_three_dots(btn) and not is_settings(btn)]
+    if not prioritized:
+        prioritized = candidates
+
+    for btn in prioritized:
+        if hard_click(driver, btn, logger):
+            try:
+                wait.until(EC.presence_of_element_located((By.XPATH, "//*[@role='menu']")))
+                return True
+            except Exception:
+                continue
+
+    logger.log("⚠️ Could not open overflow menu.")
+    return False
+
+
+def click_overflow_download(driver, logger: RunLogger, timeout=12) -> bool:
+    wait = WebDriverWait(driver, timeout)
+    if not open_overflow_menu(driver, logger, timeout=timeout):
+        return False
+
+    download_selectors = [
+        (By.XPATH, "//*[@role='menu']//*[@role='menuitem' and normalize-space()='Download']"),
+        (By.XPATH, "//*[@role='menu']//*[self::div or self::button][contains(normalize-space(.), 'Download')]"),
+    ]
+    for by, sel in download_selectors:
+        try:
+            item = wait.until(EC.element_to_be_clickable((by, sel)))
+            if item.is_displayed() and hard_click(driver, item, logger):
+                logger.log("✅ Clicked Download in overflow menu")
+                return True
+        except Exception:
+            continue
+
+    logger.log("⚠️ Download option not found in overflow menu.")
+    return False
+
+
 def click_download_button(driver, logger: RunLogger, timeout=35) -> bool:
     wait = WebDriverWait(driver, timeout)
     _hover_to_show_topbar(driver)
@@ -710,16 +784,9 @@ def download_from_detail_link(driver, logger: RunLogger, detail_url: str, row_id
     for attempt in range(1, 3):
         logger.log(f"⬇️ Download attempt {attempt}/2")
 
-        if not click_download_button(driver, logger, timeout=CLICK_DOWNLOAD_TIMEOUT):
+        if not click_overflow_download(driver, logger, timeout=CLICK_DOWNLOAD_TIMEOUT):
             if attempt == 2:
                 save_debug(driver, logger, "download_btn_missing")
-                return (False, False, None)
-            time.sleep(1)
-            continue
-
-        if not choose_video_option(driver, logger, timeout=CHOOSE_VIDEO_TIMEOUT):
-            if attempt == 2:
-                save_debug(driver, logger, "video_option_missing")
                 return (False, False, None)
             time.sleep(1)
             continue
