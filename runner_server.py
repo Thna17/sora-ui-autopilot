@@ -1,10 +1,17 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-import os, sys, json, uuid, subprocess, threading, time
+import os, sys, json, uuid, subprocess, threading, time, shutil
 from typing import Optional, Dict, Any, Union, List
 from pathlib import Path
 
 app = FastAPI()
+
+BASE_DIR = os.path.dirname(__file__)
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+os.makedirs(STATIC_DIR, exist_ok=True)
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 BASE_DIR = os.path.dirname(__file__)
 PYTHON = os.environ.get("SORA_PYTHON", sys.executable)
@@ -314,3 +321,86 @@ def process_status(job_id: str):
 @app.get("/routes")
 def routes():
     return sorted([f"{r.path} [{','.join(sorted(r.methods or []))}]" for r in app.router.routes])
+
+
+# ============================================================
+# 3) CHROME PROFILE MANAGEMENT
+# ============================================================
+PROFILES_ROOT = os.path.join(BASE_DIR, "chrome_profiles")
+os.makedirs(PROFILES_ROOT, exist_ok=True)
+
+class ProfileReq(BaseModel):
+    name: str
+
+@app.get("/list_profiles")
+def list_profiles():
+    """List all available chrome profile directories."""
+    if not os.path.exists(PROFILES_ROOT):
+        return {"profiles": []}
+    
+    profiles = []
+    for item in os.listdir(PROFILES_ROOT):
+        p = os.path.join(PROFILES_ROOT, item)
+        if os.path.isdir(p):
+            # Check if running (naive check if lock file exists, optional)
+            profiles.append(item)
+    return {"profiles": sorted(profiles)}
+
+@app.post("/create_profile")
+def create_profile(req: ProfileReq):
+    name = req.name.strip()
+    if not name:
+        return {"ok": False, "error": "Name cannot be empty"}
+    
+    # Sanitize name
+    safe_name = "".join([c for c in name if c.isalnum() or c in ('-', '_')]).strip()
+    if not safe_name:
+         return {"ok": False, "error": "Invalid profile name"}
+
+    target = os.path.join(PROFILES_ROOT, safe_name)
+    if os.path.exists(target):
+         return {"ok": False, "error": "Profile already exists"}
+    
+    try:
+        os.makedirs(target)
+        return {"ok": True, "name": safe_name}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+@app.post("/delete_profile")
+def delete_profile(req: ProfileReq):
+    name = req.name.strip()
+    target = os.path.join(PROFILES_ROOT, name)
+    if not os.path.exists(target):
+        return {"ok": False, "error": "Profile not found"}
+    
+    try:
+        shutil.rmtree(target)
+        return {"ok": True, "name": name}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+@app.post("/launch_profile")
+def launch_profile(req: ProfileReq):
+    """
+    Launch a browser window for this profile (headful) so user can login/manage.
+    This spawns a background process.
+    """
+    name = req.name.strip()
+    profile_path = os.path.join(PROFILES_ROOT, name)
+    if not os.path.exists(profile_path):
+        return {"ok": False, "error": "Profile not found"}
+    
+    # We need a script to launch the browser. 
+    # We'll use a new script 'launch_browser.py' or inline valid python code.
+    # Let's point to a new script.
+    launcher_script = os.path.join(BASE_DIR, "scripts", "launch_browser.py")
+    
+    cmd = [PYTHON, launcher_script, profile_path]
+    
+    try:
+        # Popen without waiting
+        subprocess.Popen(cmd, env=os.environ.copy())
+        return {"ok": True, "message": f"Launched profile {name}"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}

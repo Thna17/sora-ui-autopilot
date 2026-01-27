@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sora Autopilot - Profile Manager</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>Chrome Manager</h1>
+                <div class="subtitle">Manage and launch your automation profiles</div>
+            </div>
+            <div id="status-indicator"></div>
+        </header>
+
+        <div class="add-profile-section glass-card">
+            <input type="text" id="new-profile-name" placeholder="Enter new profile name (e.g., Creator-Account-1)">
+            <button id="create-btn" class="btn btn-primary">
+                <span>+ Create Profile</span>
+            </button>
+        </div>
+
+        <div id="profile-list" class="profile-grid">
+            <!-- Profiles will be injected here -->
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">Action outcome</div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

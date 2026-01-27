@@ -20,9 +20,11 @@ logs/
 downloads/
 debug/
 chrome_profile/
+chrome_profiles/
 browser_context/
 auth_state.json
 data.csv
+outputs/
 
 # Editor/OS
 .idea/

@@ -32,17 +32,18 @@ from selenium.common.exceptions import (
 # Config
 # -----------------------
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-PROFILE_DIR = os.path.join(BASE_DIR, "chrome_profile")
+# Allow overriding profile via env (e.g. from runner or manual run)
+PROFILE_DIR = os.environ.get("SORA_CHROME_PROFILE", os.path.join(BASE_DIR, "chrome_profile"))
 
 SORA_EXPLORE_URL = "https://sora.chatgpt.com/explore"
 SORA_DRAFTS_URL = "https://sora.chatgpt.com/drafts"
 
-WAIT_AFTER_SUBMIT_SECONDS = int(os.environ.get("SORA_WAIT_SECONDS", "60"))
-POST_SUBMIT_WAIT_SECONDS = int(os.environ.get("SORA_POST_SUBMIT_WAIT", "8"))
+WAIT_AFTER_SUBMIT_SECONDS = int(os.environ.get("SORA_WAIT_SECONDS", "90"))
+POST_SUBMIT_WAIT_SECONDS = int(os.environ.get("SORA_POST_SUBMIT_WAIT", "60"))
 DRAFTS_POLL_SECONDS = int(
     os.environ.get(
         "SORA_DRAFTS_POLL_SECONDS",
-        os.environ.get("SORA_LIBRARY_POLL_SECONDS", "10"),
+        os.environ.get("SORA_LIBRARY_POLL_SECONDS", "15"),
     )
 )
 DRAFTS_MAX_WAIT_SECONDS = int(
@@ -438,6 +439,7 @@ def get_newest_draft_link(driver, logger: RunLogger, timeout=60) -> str:
     wait = WebDriverWait(driver, timeout)
     driver.get(SORA_DRAFTS_URL)
     wait_body(driver, 60)
+    wait_loading_gone(driver, logger)
 
     selectors = [
         (By.CSS_SELECTOR, "a[href^='/d/']"),
@@ -519,26 +521,24 @@ def _hover_to_show_topbar(driver):
         pass
 
 
-def open_overflow_menu(driver, logger: RunLogger, timeout=12) -> bool:
-    wait = WebDriverWait(driver, timeout)
-
-    def visible_buttons():
-        buttons = driver.find_elements(By.CSS_SELECTOR, "button[aria-haspopup='menu']")
-        return [btn for btn in buttons if btn.is_displayed()]
-
-    candidates = []
+def wait_loading_gone(driver, logger, timeout=30):
+    """Wait for spinner to disappear."""
     try:
-        dialog_buttons = driver.find_elements(By.XPATH, "//div[@role='dialog']//button[@aria-haspopup='menu']")
-        candidates.extend([btn for btn in dialog_buttons if btn.is_displayed()])
+        WebDriverWait(driver, timeout).until(
+            EC.invisibility_of_element_located((By.CSS_SELECTOR, ".spin_loader"))
+        )
+        # Extra grace after spinner
+        time.sleep(1) 
     except Exception:
         pass
 
-    if not candidates:
-        candidates = visible_buttons()
 
-    if not candidates:
-        logger.log("⚠️ Overflow menu button not found.")
-        return False
+def open_overflow_menu(driver, logger: RunLogger, timeout=12) -> bool:
+    wait = WebDriverWait(driver, timeout)
+
+    def is_settings(btn) -> bool:
+        label = (btn.get_attribute("aria-label") or "").strip().lower()
+        return "settings" in label
 
     def has_three_dots(btn) -> bool:
         try:
@@ -547,27 +547,99 @@ def open_overflow_menu(driver, logger: RunLogger, timeout=12) -> bool:
             return False
         for p in paths:
             d = (p.get_attribute("d") or "").replace(" ", "")
-            if "M3" in d and "12a2" in d and "1" in d and "4" in d and "7" in d:
+            if "M3" in d and "12a2" in d and "1" in d:
                 return True
         return False
 
-    def is_settings(btn) -> bool:
-        label = (btn.get_attribute("aria-label") or "").lower()
-        return "settings" in label
+    def menu_has_download() -> bool:
+        try:
+            menu = driver.find_element(By.XPATH, "//*[@role='menu']")
+        except Exception:
+            return False
+        try:
+            els = menu.find_elements(By.XPATH, ".//*[contains(normalize-space(.), 'Download')]")
+            return any(e.is_displayed() for e in els)
+        except Exception:
+            return False
 
-    prioritized = [btn for btn in candidates if has_three_dots(btn) and not is_settings(btn)]
-    if not prioritized:
-        prioritized = candidates
+    # 0) Wait for at least some menu buttons to appear
+    try:
+        wait.until(EC.presence_of_element_located((By.XPATH, "//button[@aria-haspopup='menu']")))
+    except Exception:
+        pass
 
-    for btn in prioritized:
-        if hard_click(driver, btn, logger):
+    # 1) STRONG: match your real button: aria-haspopup=menu + class contains p-[7px]
+    strong_xpath = "//button[@aria-haspopup='menu' and contains(@class,'p-[7px]')]"
+
+    # 2) fallback: any menu button that has 3-dots icon (still exclude settings)
+    fallback_xpath = "//button[@aria-haspopup='menu']"
+
+    candidates = []
+
+    # Try strong candidates first
+    try:
+        els = driver.find_elements(By.XPATH, strong_xpath)
+        candidates = [e for e in els if e.is_displayed() and not is_settings(e)]
+    except Exception:
+        candidates = []
+
+    # If none, fallback to any menu button but prioritize 3-dots and exclude settings
+    if not candidates:
+        try:
+            els = driver.find_elements(By.XPATH, fallback_xpath)
+            els = [e for e in els if e.is_displayed() and not is_settings(e)]
+            # sort so 3-dots come first
+            els.sort(key=lambda e: 0 if has_three_dots(e) else 1)
+            candidates = els
+        except Exception:
+            candidates = []
+
+    if not candidates:
+        logger.log("⚠️ Overflow menu button not found anywhere on page.")
+        # Attempt to wait specifically for the button again just in case
+        try:
+            logger.log("⌛ Waiting extra for any candidate...")
+            c = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@aria-haspopup='menu'][not(@aria-label='Settings')]")))
+            candidates = [c]
+        except Exception:
+            return False
+
+    # Try candidates until a menu opens and contains Download
+    for i, btn in enumerate(candidates[:10], start=1):
+        try:
+            # visual debug outline (optional)
+            try:
+                driver.execute_script(
+                    "arguments[0].style.outline='3px solid lime'; arguments[0].scrollIntoView({block:'center'});",
+                    btn
+                )
+            except Exception:
+                pass
+
+            if not hard_click(driver, btn, logger):
+                continue
+
+            # wait for any menu
             try:
                 wait.until(EC.presence_of_element_located((By.XPATH, "//*[@role='menu']")))
-                return True
             except Exception:
                 continue
 
-    logger.log("⚠️ Could not open overflow menu.")
+            # ensure it's the right menu
+            if menu_has_download():
+                logger.log(f"✅ Opened correct overflow menu (candidate #{i})")
+                return True
+
+            # wrong menu (likely Settings or something else) -> close and continue
+            logger.log(f"⚠️ Menu opened but no Download found (candidate #{i}); closing and trying next.")
+            ActionChains(driver).send_keys(Keys.ESCAPE).perform()
+            time.sleep(0.3)
+
+        except Exception as e:
+            logger.log(f"⚠️ Candidate click failed: {e}")
+            continue
+
+    logger.log("⚠️ Could not open correct overflow menu (Download not found).")
     return False
 
 
@@ -776,6 +848,7 @@ def trigger_download_after_export(driver, logger: RunLogger, before_files: set[s
 def download_from_detail_link(driver, logger: RunLogger, detail_url: str, row_id: str | None) -> tuple[bool, bool, str | None]:
     driver.get(detail_url)
     wait_body(driver, 60)
+    wait_loading_gone(driver, logger, timeout=45)
 
     before_files = list_files_in_download_dir()
     logger.log(f"📁 Downloads before: {len(before_files)} files")
@@ -839,6 +912,7 @@ def run_one(prompt: str, row_id: str | None):
         logger.log("🌐 Opening Sora Explore...")
         driver.get(SORA_EXPLORE_URL)
         wait_body(driver, timeout=60)
+        wait_loading_gone(driver, logger)
         time.sleep(1)
 
         # logger.log("🎛️ Switching Type → Video...")
