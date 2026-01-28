@@ -145,7 +145,7 @@ def build_driver(logger: RunLogger):
 
     # User requested tablet-like size, not full screen
     try:
-        driver.set_window_size(1024, 768)
+        driver.set_window_size(768, 768)
     except Exception:
         pass
 
@@ -617,7 +617,20 @@ def open_overflow_menu(driver, logger: RunLogger, timeout=12) -> bool:
             c = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@aria-haspopup='menu'][not(@aria-label='Settings')]")))
             candidates = [c]
         except Exception:
+            # Last ditch: ensure window is focused (sometimes headless/background throttling hides elements)
+            try:
+                driver.execute_script("window.focus();")
+                ActionChains(driver).move_by_offset(1, 1).perform()
+                time.sleep(1)
+            except Exception:
+                pass
             return False
+
+    # Ensure window is focused before clicking
+    try:
+        driver.execute_script("window.focus();")
+    except Exception:
+        pass
 
     # Try candidates until a menu opens and contains Download
     for i, btn in enumerate(candidates[:10], start=1):
