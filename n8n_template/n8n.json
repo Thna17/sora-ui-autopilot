@@ -176,6 +176,10 @@
               {
                 "name": "webhookUrl",
                 "value": "http://localhost:5678/webhook/sora_done"
+              },
+              {
+                "name": "chromeProfile",
+                "value": "={{$json.chromeProfile}}"
               }
             ]
           },
