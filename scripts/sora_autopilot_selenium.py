@@ -163,6 +163,11 @@ def hard_click(driver, el, logger: RunLogger | None = None) -> bool:
         pass
 
     try:
+        driver.execute_script("arguments[0].focus();", el)
+    except Exception:
+        pass
+
+    try:
         el.click()
         return True
     except Exception:
@@ -184,9 +189,14 @@ def hard_click(driver, el, logger: RunLogger | None = None) -> bool:
         driver.execute_script(
             """
             const el = arguments[0];
-            el.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, view:window}));
-            el.dispatchEvent(new MouseEvent('mouseup', {bubbles:true, cancelable:true, view:window}));
-            el.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, view:window}));
+            const opts = {bubbles:true, cancelable:true, view:window};
+            el.dispatchEvent(new MouseEvent('mousedown', opts));
+            el.dispatchEvent(new MouseEvent('mouseup', opts));
+            el.dispatchEvent(new MouseEvent('click', opts));
+            
+            // Modern React/Radix often listen for pointer events
+            el.dispatchEvent(new PointerEvent('pointerdown', opts));
+            el.dispatchEvent(new PointerEvent('pointerup', opts));
             """,
             el,
         )
