@@ -139,9 +139,15 @@ def build_driver(logger: RunLogger):
 
     try:
         driver.execute_cdp_cmd("Page.setDownloadBehavior", {"behavior": "allow", "downloadPath": DOWNLOAD_DIR})
-        logger.log(f"✅ Download behavior set: {DOWNLOAD_DIR}")
     except Exception as e:
         logger.log(f"⚠️ Could not set download behavior via CDP: {e}")
+
+    # Add flags to prevent background throttling
+    options.add_argument("--disable-backgrounding-occluded-windows")
+    options.add_argument("--disable-renderer-backgrounding")
+    options.add_argument("--disable-background-timer-throttling")
+    options.add_argument("--disable-background-networking") 
+
 
     # User requested tablet-like size, not full screen
     try:

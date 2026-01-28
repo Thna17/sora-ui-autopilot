@@ -1,913 +1,1339 @@
-[
-  {
-    "name": "SoraQueue - Dispatcher (Cron -> /run_async)",
-    "nodes": [
-      {
-        "parameters": {
-          "triggerTimes": {
-            "item": [
-              {
-                "mode": "everyMinute"
-              }
-            ]
-          }
-        },
-        "id": "c0f5f0e6-3f06-4c8d-86a5-2f1b74bbd001",
-        "name": "Cron",
-        "type": "n8n-nodes-base.cron",
-        "typeVersion": 1,
-        "position": [
-          -560,
-          180
-        ]
-      },
-      {
-        "parameters": {
-          "documentId": {
-            "__rl": true,
-            "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
-            "mode": "id"
-          },
-          "sheetName": {
-            "__rl": true,
-            "value": "gid=0",
-            "mode": "list"
-          },
-          "filtersUI": {
-            "values": [
-              {
-                "lookupColumn": "status",
-                "lookupValue": "NEW"
-              }
-            ]
-          },
-          "combineFilters": "AND",
-          "options": {
-            "returnAllMatches": "returnAllMatches"
-          }
-        },
-        "id": "c0f5f0e6-3f06-4c8d-86a5-2f1b74bbd002",
-        "name": "GS: Get NEW rows",
-        "type": "n8n-nodes-base.googleSheets",
-        "typeVersion": 4,
-        "position": [
-          -320,
-          180
-        ],
-        "credentials": {
-          "googleSheetsOAuth2Api": {
-            "id": "REPLACE_WITH_YOURS",
-            "name": "Google Sheets account"
-          }
-        }
-      },
-      {
-        "parameters": {
-          "batchSize": 1,
-          "options": {}
-        },
-        "id": "c0f5f0e6-3f06-4c8d-86a5-2f1b74bbd003",
-        "name": "Split in Batches (1)",
-        "type": "n8n-nodes-base.splitInBatches",
-        "typeVersion": 3,
-        "position": [
-          -80,
-          180
-        ]
-      },
-      {
-        "parameters": {
-          "keepOnlySet": false,
-          "values": {
-            "string": [
-              {
-                "name": "status",
-                "value": "RUNNING"
-              },
-              {
-                "name": "updated_at",
-                "value": "={{$now.toISO()}}"
-              },
-              {
-                "name": "run_at",
-                "value": "={{$now.toISO()}}"
-              }
-            ]
-          },
-          "options": {}
-        },
-        "id": "c0f5f0e6-3f06-4c8d-86a5-2f1b74bbd004",
-        "name": "Set RUNNING fields",
-        "type": "n8n-nodes-base.set",
-        "typeVersion": 2,
-        "position": [
-          160,
-          180
-        ]
-      },
-      {
-        "parameters": {
-          "operation": "update",
-          "documentId": {
-            "__rl": true,
-            "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
-            "mode": "id"
-          },
-          "sheetName": {
-            "__rl": true,
-            "value": "gid=0",
-            "mode": "list"
-          },
-          "columns": {
-            "mappingMode": "defineBelow",
-            "value": {
-              "row_number": "={{$json.row_number}}",
-              "status": "={{$json.status}}",
-              "updated_at": "={{$json.updated_at}}",
-              "run_at": "={{$json.run_at}}"
-            },
-            "matchingColumns": [
-              "row_number"
-            ],
-            "attemptToConvertTypes": false,
-            "convertFieldsToString": false
-          },
-          "options": {}
-        },
-        "id": "c0f5f0e6-3f06-4c8d-86a5-2f1b74bbd005",
-        "name": "GS: Update row -> RUNNING",
-        "type": "n8n-nodes-base.googleSheets",
-        "typeVersion": 4,
-        "position": [
-          400,
-          180
-        ],
-        "credentials": {
-          "googleSheetsOAuth2Api": {
-            "id": "REPLACE_WITH_YOURS",
-            "name": "Google Sheets account"
-          }
-        }
-      },
-      {
-        "parameters": {
-          "method": "POST",
-          "url": "http://127.0.0.1:5055/run_async",
-          "sendBody": true,
-          "contentType": "json",
-          "bodyParameters": {
-            "parameters": [
-              {
-                "name": "prompt",
-                "value": "={{$json.prompt}}"
-              },
-              {
-                "name": "storyId",
-                "value": "={{$json.story_id}}"
-              },
-              {
-                "name": "scene",
-                "value": "={{$json.scene}}"
-              },
-              {
-                "name": "rowId",
-                "value": "={{$json.row_number}}"
-              },
-              {
-                "name": "webhookUrl",
-                "value": "http://localhost:5678/webhook/sora_done"
-              },
-              {
-                "name": "chromeProfile",
-                "value": "={{$json.chromeProfile}}"
-              }
-            ]
-          },
-          "options": {
-            "timeout": 900000,
-            "retry": {
-              "maxTries": 3,
-              "waitBetweenTries": 2000
+{
+  "name": "SoraQueue → Merge + Captions + Music + Post YouTube/TikTok",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
             }
-          }
-        },
-        "id": "c0f5f0e6-3f06-4c8d-86a5-2f1b74bbd006",
-        "name": "HTTP: /run_async",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.3,
-        "position": [
-          640,
-          180
-        ]
-      },
-      {
-        "parameters": {
-          "jsCode": "const body = $json;\n\n// /run_async returns { ok, jobId, status, storyId, scene, rowId }\nif (!body.ok) {\n  return [{\n    ...$json,\n    _dispatchOk: false,\n    last_error: body.error || 'run_async failed',\n    updated_at: new Date().toISOString(),\n  }];\n}\n\nreturn [{\n  ...$json,\n  _dispatchOk: true,\n  job_id: body.jobId || '',\n  updated_at: new Date().toISOString(),\n}];"
-        },
-        "id": "c0f5f0e6-3f06-4c8d-86a5-2f1b74bbd007",
-        "name": "Code: Normalize dispatch result",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          880,
-          180
-        ]
-      },
-      {
-        "parameters": {
-          "conditions": {
-            "options": {
-              "typeValidation": "strict",
-              "version": 1
-            },
-            "conditions": [
-              {
-                "leftValue": "={{$json._dispatchOk}}",
-                "rightValue": true,
-                "operator": {
-                  "type": "boolean",
-                  "operation": "equals"
-                }
-              }
-            ],
-            "combinator": "and"
-          }
-        },
-        "id": "c0f5f0e6-3f06-4c8d-86a5-2f1b74bbd008",
-        "name": "IF: dispatch ok?",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2,
-        "position": [
-          1120,
-          180
-        ]
-      },
-      {
-        "parameters": {
-          "operation": "update",
-          "documentId": {
-            "__rl": true,
-            "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
-            "mode": "id"
-          },
-          "sheetName": {
-            "__rl": true,
-            "value": "gid=0",
-            "mode": "list"
-          },
-          "columns": {
-            "mappingMode": "defineBelow",
-            "value": {
-              "row_number": "={{$json.row_number}}",
-              "job_id": "={{$json.job_id}}",
-              "updated_at": "={{$json.updated_at}}"
-            },
-            "matchingColumns": [
-              "row_number"
-            ],
-            "attemptToConvertTypes": false,
-            "convertFieldsToString": false
-          },
-          "options": {}
-        },
-        "id": "c0f5f0e6-3f06-4c8d-86a5-2f1b74bbd009",
-        "name": "GS: Save job_id",
-        "type": "n8n-nodes-base.googleSheets",
-        "typeVersion": 4,
-        "position": [
-          1360,
-          120
-        ],
-        "credentials": {
-          "googleSheetsOAuth2Api": {
-            "id": "REPLACE_WITH_YOURS",
-            "name": "Google Sheets account"
-          }
+          ]
         }
       },
-      {
-        "parameters": {
-          "operation": "update",
-          "documentId": {
-            "__rl": true,
-            "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
-            "mode": "id"
-          },
-          "sheetName": {
-            "__rl": true,
-            "value": "gid=0",
-            "mode": "list"
-          },
-          "columns": {
-            "mappingMode": "defineBelow",
-            "value": {
-              "row_number": "={{$json.row_number}}",
-              "status": "ERROR",
-              "last_error": "={{$json.last_error}}",
-              "updated_at": "={{$json.updated_at}}"
-            },
-            "matchingColumns": [
-              "row_number"
-            ],
-            "attemptToConvertTypes": false,
-            "convertFieldsToString": false
-          },
-          "options": {}
+      "id": "3cf3322c-9e5f-448a-bbde-7d8bbd55a3ee",
+      "name": "Schedule Trigger (Every 10min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -640,
+        400
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "6af88483-ac98-4189-9f75-28be136f94c5",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -640,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
         },
-        "id": "c0f5f0e6-3f06-4c8d-86a5-2f1b74bbd010",
-        "name": "GS: Mark ERROR (dispatch)",
-        "type": "n8n-nodes-base.googleSheets",
-        "typeVersion": 4,
-        "position": [
-          1360,
-          260
-        ],
-        "credentials": {
-          "googleSheetsOAuth2Api": {
-            "id": "REPLACE_WITH_YOURS",
-            "name": "Google Sheets account"
-          }
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gid=0",
+          "cachedResultName": "Sheet1"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "status",
+              "lookupValue": "NEW"
+            }
+          ]
+        },
+        "combineFilters": "AND",
+        "options": {
+          "limit": 1
+        }
+      },
+      "id": "e6bcd17a-8861-443c-9dc9-ee85323ee592",
+      "name": "GS: Get 1 NEW Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -400,
+        320
+      ],
+      "alwaysOutputData": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
         }
       }
-    ],
-    "connections": {
-      "Cron": {
-        "main": [
-          [
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
             {
-              "node": "GS: Get NEW rows",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "GS: Get NEW rows": {
-        "main": [
-          [
-            {
-              "node": "Split in Batches (1)",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Split in Batches (1)": {
-        "main": [
-          [
-            {
-              "node": "Set RUNNING fields",
-              "type": "main",
-              "index": 0
+              "id": "5ab1d918-c1f7-4817-bfe8-2b6a0514b12f",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "NEW",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
           ],
-          [
-            {
-              "node": "GS: Get NEW rows",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
+          "combinator": "and"
+        },
+        "options": {}
       },
-      "Set RUNNING fields": {
-        "main": [
-          [
+      "id": "2c3b90ac-fbb1-4330-abf1-395b45ddbc7a",
+      "name": "IF: Found NEW Row?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
             {
-              "node": "GS: Update row -> RUNNING",
-              "type": "main",
-              "index": 0
+              "name": "updated_at",
+              "value": "={{ $now.toISO() }}"
+            },
+            {
+              "name": "status",
+              "value": "RUNNING"
+            },
+            {
+              "name": "row_number",
+              "value": "={{ $json.row_number }}"
             }
           ]
-        ]
+        },
+        "options": {}
       },
-      "GS: Update row -> RUNNING": {
-        "main": [
-          [
-            {
-              "node": "HTTP: /run_async",
-              "type": "main",
-              "index": 0
-            }
+      "id": "2b68a2de-d34c-4c23-9939-85e54df05756",
+      "name": "Set: RUNNING Status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        80,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "={{ $json.status }}",
+            "updated_at": "={{ $json.updated_at }}",
+            "row_number": "={{ $json.row_number }}"
+          },
+          "matchingColumns": [
+            "row_number"
           ]
-        ]
+        },
+        "options": {}
       },
-      "HTTP: /run_async": {
-        "main": [
-          [
-            {
-              "node": "Code: Normalize dispatch result",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Code: Normalize dispatch result": {
-        "main": [
-          [
-            {
-              "node": "IF: dispatch ok?",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "IF: dispatch ok?": {
-        "main": [
-          [
-            {
-              "node": "GS: Save job_id",
-              "type": "main",
-              "index": 0
-            }
-          ],
-          [
-            {
-              "node": "GS: Mark ERROR (dispatch)",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
+      "id": "a249fbd4-7d49-4021-9f13-942fbde32c1f",
+      "name": "GS: Update → RUNNING",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        320,
+        240
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
       }
     },
-    "active": true,
-    "settings": {
-      "executionOrder": "v1",
-      "saveExecutionProgress": true,
-      "executionTimeout": 3600
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/run_async",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{ $json.prompt }}"
+            },
+            {
+              "name": "storyId",
+              "value": "={{ $json.story_id }}"
+            },
+            {
+              "name": "scene",
+              "value": "={{ $json.scene }}"
+            },
+            {
+              "name": "rowId",
+              "value": "={{ $json.row_number }}"
+            },
+            {
+              "name": "webhookUrl",
+              "value": "http://localhost:5678/webhook/sora_done"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 900000
+        }
+      },
+      "id": "f5cd23ef-584e-4ca7-9edb-6402eaf1672b",
+      "name": "HTTP: Trigger Sora Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        240
+      ]
     },
-    "id": "SORAQUEUE_DISPATCHER_V1",
-    "tags": []
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sora_done",
+        "options": {}
+      },
+      "id": "379b2382-a57b-4982-9927-00a47f3b9663",
+      "name": "Webhook: Sora Done",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        680
+      ],
+      "webhookId": "4a424985-bc7d-4213-96be-5db21ede0dd4"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse webhook payload from Sora completion\nconst root = $json || {};\nconst body = root.body || {};\nconst result = body.result || {};\n\nconst stdout = body.stdout || \"\";\nconst stderr = body.stderr || \"\";\n\nconst downloadedFilename = result.downloaded_filename || body.downloaded_filename || \"\";\nconst localPath = result.downloaded_path || body.local_path || \"\";\n\nconst projectDownloadDir = result.download_dir || body.downloadDir || \n  \"/Users/macbookpro/iCloud Drive (Archive) - 2/Desktop/Desktop - Brathna/Project - Coding/sora-autopilot/sora-ui-autopilot/downloads\";\n\nconst fixedLocalPath = localPath || (downloadedFilename ? `${projectDownloadDir}/${downloadedFilename}` : \"\");\n\nconst rowId = body.rowId !== undefined && body.rowId !== null ? String(body.rowId) : \"\";\nconst scene = body.scene !== undefined && body.scene !== null ? Number(body.scene) : null;\n\nreturn {\n  jobId: body.jobId || \"\",\n  rowId,\n  storyId: body.storyId || \"\",\n  scene,\n  ok: !!body.ok,\n  status: body.status || \"\",\n  exitCode: body.exitCode ?? null,\n  stdout,\n  stderr,\n  downloaded_filename: downloadedFilename,\n  local_path: fixedLocalPath,\n  downloadDir: projectDownloadDir,\n  newest_link: result.newest_link || \"\",\n  log_file: result.log_file || \"\",\n  started: !!result.started,\n  finished: !!result.finished,\n  webhookUrl: body.webhookUrl || \"\",\n  executionMode: body.executionMode || \"\",\n  updated_at: new Date().toISOString()\n};"
+      },
+      "id": "26463964-a77d-46c6-a473-f10fe48ac02b",
+      "name": "Code: Parse Sora Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "story_id",
+              "value": "={{ $json.storyId }}"
+            },
+            {
+              "name": "status",
+              "value": "DONE"
+            },
+            {
+              "name": "local_path",
+              "value": "={{ $json.local_path }}"
+            },
+            {
+              "name": "updated_at",
+              "value": "={{ $json.updated_at }}"
+            }
+          ],
+          "number": [
+            {
+              "name": "scene",
+              "value": "={{ $json.scene }}"
+            },
+            {
+              "name": "row_number",
+              "value": "={{ $json.rowId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a16a3e53-42c9-4f15-a9b8-08acca3be750",
+      "name": "Set: DONE Status",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        -160,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "={{ $json.status }}",
+            "story_id": "={{ $json.story_id }}",
+            "updated_at": "={{ $json.updated_at }}",
+            "local_path": "={{ $json.local_path }}",
+            "row_number": "={{ $json.row_number }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ]
+        },
+        "options": {}
+      },
+      "id": "431400e9-802b-498f-a678-613c15992285",
+      "name": "GS: Update → DONE",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        80,
+        680
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "story_id",
+              "lookupValue": "={{ $json.story_id }}"
+            }
+          ]
+        },
+        "combineFilters": "AND",
+        "options": {
+          "returnAllMatches": "returnAllMatches"
+        }
+      },
+      "id": "30c04e10-7796-49e0-852f-a9416293b0b5",
+      "name": "GS: Get All Clips (Story)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        320,
+        680
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if all 6 clips are ready for merging\nconst rows = $input.all().map(i => i.json);\n\nconst storyId = rows[0]?.story_id || rows[0]?.storyId || \"\";\nif (!storyId) {\n  return { \n    ready: false, \n    reason: \"missing story_id\", \n    story_id: \"\", \n    clips: [], \n    clipCount: 0 \n  };\n}\n\nconst norm = (s) => String(s || \"\").trim().toUpperCase();\n\n// Check for pending rows\nconst hasNEW = rows.some(r => norm(r.status) === \"NEW\");\nconst hasRUNNING = rows.some(r => norm(r.status) === \"RUNNING\");\n\n// Build sorted clips list\nrows.sort((a, b) => Number(a.scene || 0) - Number(b.scene || 0));\n\nconst clips = rows\n  .filter(r => (r.local_path || \"\").trim())\n  .map(r => ({\n    scene: Number(r.scene || 0) || null,\n    local_path: r.local_path.trim()\n  }));\n\nconst ready = !hasNEW && !hasRUNNING && clips.length >= 6;\n\nreturn {\n  ready,\n  story_id: storyId,\n  clipCount: clips.length,\n  clips,\n  hasNEW,\n  hasRUNNING,\n  reason: ready ? \"\" : (\n    hasNEW ? \"still has NEW rows\" : \n    hasRUNNING ? \"still has RUNNING rows\" : \n    `only ${clips.length} clips ready`\n  )\n};"
+      },
+      "id": "dc288ede-48af-4f15-acc1-307a62cae47f",
+      "name": "Code: Check Clips Ready",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "b634c44c-68e0-4133-b5c0-8585c8eff82d",
+              "leftValue": "={{ $json.ready }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3640e005-d56d-42f9-8f23-c74cacf84ba9",
+      "name": "IF: All Clips Ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        800,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/process",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "storyId",
+              "value": "={{ $json.story_id }}"
+            },
+            {
+              "name": "clips",
+              "value": "={{ $json.clips }}"
+            },
+            {
+              "name": "ready",
+              "value": "={{ $json.ready }}"
+            },
+            {
+              "name": "webhookUrl",
+              "value": "http://localhost:5678/webhook/media_done"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 900000
+        }
+      },
+      "id": "a6f4ed4b-6055-4963-997f-abebc5e82d84",
+      "name": "HTTP: Process Media Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "media_done",
+        "options": {}
+      },
+      "id": "d1b7c27a-fe14-44f7-b9b8-720a6c76724f",
+      "name": "Webhook: Media Done",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -640,
+        1120
+      ],
+      "webhookId": "5790c52b-56a2-43fb-a1b2-1111dd9124b0"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse media pipeline completion webhook\nconst body = $json.body || {};\nconst result = body.result || {};\n\nconst mergedDone = !!result.merged_done;\n\nreturn {\n  ...$json,\n  status: mergedDone ? 'MERGED_DONE' : (body.status || 'UNKNOWN'),\n  merged_video_path: result.output_video || '',\n  merged_srt_path: result.output_srt || '',\n  jobId: body.jobId || $json.jobId || '',\n  storyId: body.storyId || $json.storyId || '',\n  ok: body.ok ?? false,\n  exitCode: body.exitCode ?? null,\n  merged_done: mergedDone,\n  input_count: result.input_count ?? null,\n  updated_at: new Date().toISOString()\n};"
+      },
+      "id": "d9fdb599-36f6-429f-aaec-a358e79be638",
+      "name": "Code: Parse Media Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "91437ef5-a675-425d-991f-86798b8722c9",
+              "leftValue": "={{ $json.merged_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "07e851a7-5d4e-487d-95e0-870fc2605792",
+      "name": "IF: Merge Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "story_id": "={{ $json.storyId }}",
+            "status": "MERGED_DONE",
+            "video_url": "={{ $json.merged_video_path }}",
+            "updated_at": "={{ $json.updated_at }}"
+          },
+          "matchingColumns": [
+            "story_id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "abd92614-1aff-42ef-b009-fe0a267830ee",
+      "name": "GS: Update → MERGED_DONE",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        80,
+        1040
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "yt_title",
+              "value": "={{ $json.storyId || $json.story_id || 'AI Generated Story' }}"
+            },
+            {
+              "name": "yt_description",
+              "value": "={{ $json.description || $json.prompt || ('AI Story: ' + ($json.storyId || $json.story_id || '')) }}"
+            },
+            {
+              "name": "yt_tags",
+              "value": "ai,shorts,story,automated"
+            },
+            {
+              "name": "yt_categoryId",
+              "value": "24"
+            },
+            {
+              "name": "yt_privacy",
+              "value": "public"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ede95d95-78c4-4513-8731-aaeb31a6dd25",
+      "name": "Set: YouTube Metadata",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        320,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "filePath": "={{ $json.merged_video_path || $json.video_url }}",
+        "options": {
+          "binaryPropertyName": "video_data"
+        }
+      },
+      "id": "b2f31d26-9b03-4629-a451-41a61aaf878e",
+      "name": "Read: Merged Video Binary",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        560,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=resumable",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json; charset=UTF-8"
+            },
+            {
+              "name": "X-Upload-Content-Type",
+              "value": "video/mp4"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={\n  \"snippet\": {\n    \"title\": \"{{ $json.yt_title }}\",\n    \"description\": \"{{ $json.yt_description }}\",\n    \"tags\": {{ $json.yt_tags.split(',').map(t => t.trim()) }},\n    \"categoryId\": \"{{ $json.yt_categoryId }}\",\n    \"defaultLanguage\": \"en\"\n  },\n  \"status\": {\n    \"privacyStatus\": \"{{ $json.yt_privacy }}\",\n    \"license\": \"youtube\",\n    \"embeddable\": true,\n    \"publicStatsViewable\": true,\n    \"madeForKids\": false\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "73296350-2392-4b14-b4a5-1a5962eb3f13",
+      "name": "YouTube: Init Upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        1040
+      ],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "Ihr83HTOaXDm03rq",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $json.headers.location }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "video/mp4"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "video_data",
+        "options": {}
+      },
+      "id": "c65feee8-4e57-4c5a-a109-681127507c24",
+      "name": "YouTube: Upload Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        1040
+      ],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "Ihr83HTOaXDm03rq",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "youtube_video_id",
+              "value": "={{ $json.id || $json.videoId || '' }}"
+            },
+            {
+              "name": "youtube_url",
+              "value": "={{ ($json.id || $json.videoId) ? 'https://www.youtube.com/watch?v=' + ($json.id || $json.videoId) : '' }}"
+            },
+            {
+              "name": "youtube_status",
+              "value": "POSTED_YOUTUBE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "71a7bc4d-79a5-4d86-8104-beb943c7c27e",
+      "name": "Set: YouTube Response Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1280,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "story_id": "={{ $json.storyId || $json.story_id }}",
+            "youtube_status": "={{ $json.youtube_status }}",
+            "youtube_video_id": "={{ $json.youtube_video_id }}",
+            "youtube_url": "={{ $json.youtube_url }}",
+            "updated_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [
+            "story_id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "c7060ccf-791c-4f64-8ef8-f684f943df3d",
+      "name": "GS: Update → POSTED_YOUTUBE",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        1520,
+        1040
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "tk_caption",
+              "value": "={{ $json.yt_title || $json.storyId || 'AI Story' }}"
+            },
+            {
+              "name": "tiktok_video_url",
+              "value": "={{ $json.youtube_url || $json.merged_video_path }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8a2c1f3e-4d5b-6789-0abc-def123456789",
+      "name": "Set: TikTok Metadata",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1760,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.tiktok_video_url || '' }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "567f1b44-45f0-4831-9e65-2562bef9359f",
+      "name": "IF: Has TikTok URL?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/post/publish/video/init/",
+        "authentication": "oAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json; charset=UTF-8"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={\n  \"post_info\": {\n    \"title\": \"{{ $json.tk_caption.slice(0, 150) }}\",\n    \"privacy_level\": \"PUBLIC\",\n    \"disable_duet\": false,\n    \"disable_comment\": false,\n    \"disable_stitch\": false\n  },\n  \"source_info\": {\n    \"source\": \"PULL_FROM_URL\",\n    \"video_url\": \"{{ $json.tiktok_video_url }}\"\n  }\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "80673119-1403-44e2-8ecf-0ac7c24ffe62",
+      "name": "TikTok: Init Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        960
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "TikTokOAuth2CredID",
+          "name": "TikTok OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $json || {};\nconst publishId = r?.data?.publish_id || r?.publish_id || '';\n\nreturn {\n  ...$json,\n  tiktok_publish_id: publishId,\n  tiktok_init_raw: r\n};"
+      },
+      "id": "13df1026-4a8a-4c23-b574-5b27e0749e37",
+      "name": "Code: Extract TikTok Publish ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2480,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "a02abdca-f4f5-4fe6-a057-5848fcc631d5",
+      "name": "Wait: 10s for TikTok",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2720,
+        960
+      ],
+      "webhookId": "tiktok-wait-webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/post/publish/status/fetch/",
+        "authentication": "oAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json; charset=UTF-8"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={ \"publish_id\": \"{{ $json.tiktok_publish_id }}\" }",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "a7bb8a51-72c5-4309-b0f3-c77235f0f1db",
+      "name": "TikTok: Check Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2960,
+        960
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "TikTokOAuth2CredID",
+          "name": "TikTok OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $json || {};\nconst data = resp.data || resp;\n\nconst status = (data.status || data.publish_status || data.state || '').toString().toUpperCase();\nconst shareUrl = data.share_url || data.video_url || data.url || '';\nconst videoId = data.video_id || data.item_id || data.post_id || '';\n\nlet final = 'TIKTOK_PENDING';\nif (['SUCCESS', 'SUCCEEDED', 'PUBLISHED', 'DONE', 'COMPLETED'].includes(status)) {\n  final = 'POSTED_TIKTOK';\n}\nif (['FAILED', 'FAIL', 'ERROR', 'REJECTED'].includes(status)) {\n  final = 'TIKTOK_FAILED';\n}\n\nreturn {\n  ...$json,\n  tiktok_status: final,\n  tiktok_video_id: videoId,\n  tiktok_url: shareUrl,\n  tiktok_status_raw: resp\n};"
+      },
+      "id": "f07021b9-2161-441e-8665-58e3e58aa98d",
+      "name": "Code: Parse TikTok Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "story_id": "={{ $json.storyId || $json.story_id }}",
+            "tiktok_status": "={{ $json.tiktok_status }}",
+            "tiktok_publish_id": "={{ $json.tiktok_publish_id }}",
+            "tiktok_video_id": "={{ $json.tiktok_video_id }}",
+            "tiktok_url": "={{ $json.tiktok_url }}",
+            "updated_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [
+            "story_id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "f1fc60dd-9e7a-4a4a-adff-f73486470836",
+      "name": "GS: Update → POSTED_TIKTOK",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        3440,
+        960
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger (Every 10min)": {
+      "main": [
+        [
+          {
+            "node": "GS: Get 1 NEW Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "GS: Get 1 NEW Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Get 1 NEW Row": {
+      "main": [
+        [
+          {
+            "node": "IF: Found NEW Row?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Found NEW Row?": {
+      "main": [
+        [
+          {
+            "node": "Set: RUNNING Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: RUNNING Status": {
+      "main": [
+        [
+          {
+            "node": "GS: Update → RUNNING",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Update → RUNNING": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Trigger Sora Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: Sora Done": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse Sora Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse Sora Result": {
+      "main": [
+        [
+          {
+            "node": "Set: DONE Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: DONE Status": {
+      "main": [
+        [
+          {
+            "node": "GS: Update → DONE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Update → DONE": {
+      "main": [
+        [
+          {
+            "node": "GS: Get All Clips (Story)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Get All Clips (Story)": {
+      "main": [
+        [
+          {
+            "node": "Code: Check Clips Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Check Clips Ready": {
+      "main": [
+        [
+          {
+            "node": "IF: All Clips Ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: All Clips Ready?": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Process Media Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: Media Done": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse Media Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse Media Result": {
+      "main": [
+        [
+          {
+            "node": "IF: Merge Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Merge Success?": {
+      "main": [
+        [
+          {
+            "node": "GS: Update → MERGED_DONE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Update → MERGED_DONE": {
+      "main": [
+        [
+          {
+            "node": "Set: YouTube Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: YouTube Metadata": {
+      "main": [
+        [
+          {
+            "node": "Read: Merged Video Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read: Merged Video Binary": {
+      "main": [
+        [
+          {
+            "node": "YouTube: Init Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube: Init Upload": {
+      "main": [
+        [
+          {
+            "node": "YouTube: Upload Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube: Upload Video": {
+      "main": [
+        [
+          {
+            "node": "Set: YouTube Response Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: YouTube Response Data": {
+      "main": [
+        [
+          {
+            "node": "GS: Update → POSTED_YOUTUBE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Update → POSTED_YOUTUBE": {
+      "main": [
+        [
+          {
+            "node": "Set: TikTok Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: TikTok Metadata": {
+      "main": [
+        [
+          {
+            "node": "IF: Has TikTok URL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Has TikTok URL?": {
+      "main": [
+        [
+          {
+            "node": "TikTok: Init Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok: Init Publish": {
+      "main": [
+        [
+          {
+            "node": "Code: Extract TikTok Publish ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Extract TikTok Publish ID": {
+      "main": [
+        [
+          {
+            "node": "Wait: 10s for TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait: 10s for TikTok": {
+      "main": [
+        [
+          {
+            "node": "TikTok: Check Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok: Check Status": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse TikTok Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse TikTok Status": {
+      "main": [
+        [
+          {
+            "node": "GS: Update → POSTED_TIKTOK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
-  {
-    "name": "SoraQueue - Sora Done Webhook (Update DONE + Trigger Merge)",
-    "nodes": [
-      {
-        "parameters": {
-          "httpMethod": "POST",
-          "path": "sora_done",
-          "options": {}
-        },
-        "id": "d0b6a2a1-3d9d-4f0d-8a03-e94b2d9c6001",
-        "name": "Webhook: sora_done",
-        "type": "n8n-nodes-base.webhook",
-        "typeVersion": 2.1,
-        "position": [
-          -640,
-          200
-        ],
-        "webhookId": "sora_done_prod_v1"
-      },
-      {
-        "parameters": {
-          "jsCode": "const root = $json || {};\nconst body = root.body || {};\nconst result = body.result || {};\n\nconst ok = !!body.ok;\nconst finished = !!(result.finished);\n\n// Hard requirement: your FastAPI only calls webhook when finished=true,\n// but we still defensively check.\nif (!finished) {\n  return [{\n    ...root,\n    _ok: false,\n    _status: 'ERROR',\n    row_number: body.rowId ?? null,\n    story_id: body.storyId || '',\n    scene: body.scene ?? null,\n    local_path: '',\n    last_error: 'Webhook received but finished=false',\n    updated_at: new Date().toISOString(),\n  }];\n}\n\nconst downloadedPath = result.downloaded_path || '';\n\nif (!ok || !downloadedPath) {\n  return [{\n    ...root,\n    _ok: false,\n    _status: 'ERROR',\n    row_number: body.rowId ?? null,\n    story_id: body.storyId || '',\n    scene: body.scene ?? null,\n    local_path: downloadedPath || '',\n    last_error: (body.stderr || body.stdout || 'Unknown sora error').toString().slice(0, 1500),\n    updated_at: new Date().toISOString(),\n  }];\n}\n\nreturn [{\n  ...root,\n  _ok: true,\n  _status: 'DONE',\n  row_number: body.rowId ?? null,\n  story_id: body.storyId || '',\n  scene: body.scene ?? null,\n  local_path: downloadedPath,\n  job_id: body.jobId || '',\n  updated_at: new Date().toISOString(),\n}];"
-        }
-      },
-      {
-        "id": "d0b6a2a1-3d9d-4f0d-8a03-e94b2d9c6002",
-        "name": "Code: Normalize sora_done payload",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          -400,
-          200
-        ]
-      },
-      {
-        "parameters": {
-          "operation": "update",
-          "documentId": {
-            "__rl": true,
-            "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
-            "mode": "id"
-          },
-          "sheetName": {
-            "__rl": true,
-            "value": "gid=0",
-            "mode": "list"
-          },
-          "columns": {
-            "mappingMode": "defineBelow",
-            "value": {
-              "row_number": "={{$json.row_number}}",
-              "story_id": "={{$json.story_id}}",
-              "scene": "={{$json.scene}}",
-              "status": "={{$json._status}}",
-              "local_path": "={{$json.local_path}}",
-              "job_id": "={{$json.job_id}}",
-              "last_error": "={{$json.last_error}}",
-              "updated_at": "={{$json.updated_at}}"
-            },
-            "matchingColumns": [
-              "row_number"
-            ],
-            "attemptToConvertTypes": false,
-            "convertFieldsToString": false
-          },
-          "options": {}
-        },
-        "id": "d0b6a2a1-3d9d-4f0d-8a03-e94b2d9c6003",
-        "name": "GS: Update row (DONE/ERROR)",
-        "type": "n8n-nodes-base.googleSheets",
-        "typeVersion": 4,
-        "position": [
-          -160,
-          200
-        ],
-        "credentials": {
-          "googleSheetsOAuth2Api": {
-            "id": "REPLACE_WITH_YOURS",
-            "name": "Google Sheets account"
-          }
-        }
-      },
-      {
-        "parameters": {
-          "documentId": {
-            "__rl": true,
-            "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
-            "mode": "id"
-          },
-          "sheetName": {
-            "__rl": true,
-            "value": "gid=0",
-            "mode": "list"
-          },
-          "filtersUI": {
-            "values": [
-              {
-                "lookupColumn": "story_id",
-                "lookupValue": "={{$json.story_id}}"
-              }
-            ]
-          },
-          "combineFilters": "AND",
-          "options": {
-            "returnAllMatches": "returnAllMatches"
-          }
-        },
-        "id": "d0b6a2a1-3d9d-4f0d-8a03-e94b2d9c6004",
-        "name": "GS: Get ALL rows for story_id",
-        "type": "n8n-nodes-base.googleSheets",
-        "typeVersion": 4,
-        "position": [
-          80,
-          200
-        ],
-        "credentials": {
-          "googleSheetsOAuth2Api": {
-            "id": "REPLACE_WITH_YOURS",
-            "name": "Google Sheets account"
-          }
-        }
-      },
-      {
-        "parameters": {
-          "jsCode": "const rows = $input.all().map(i => i.json);\nconst storyId = rows[0]?.story_id || '';\n\nconst statuses = rows.map(r => String(r.status || ''));\nconst alreadyMerged = statuses.includes('MERGED_DONE');\nconst alreadyMerging = statuses.includes('MERGING');\n\nconst doneClips = rows\n  .filter(r => String(r.status||'') === 'DONE' && r.local_path)\n  .map(r => ({ scene: Number(r.scene||0), local_path: String(r.local_path) }));\n\ndoneClips.sort((a,b) => a.scene - b.scene);\n\nreturn [{\n  story_id: storyId,\n  ready: doneClips.length === 6,\n  clipCount: doneClips.length,\n  clips: doneClips,\n  alreadyMerged,\n  alreadyMerging,\n}];"
-        }
-      },
-      {
-        "id": "d0b6a2a1-3d9d-4f0d-8a03-e94b2d9c6005",
-        "name": "Code: ready==6 + idempotency flags",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          320,
-          200
-        ]
-      },
-      {
-        "parameters": {
-          "conditions": {
-            "options": {
-              "typeValidation": "strict",
-              "version": 1
-            },
-            "conditions": [
-              {
-                "leftValue": "={{$json.ready}}",
-                "rightValue": true,
-                "operator": {
-                  "type": "boolean",
-                  "operation": "equals"
-                }
-              },
-              {
-                "leftValue": "={{$json.alreadyMerged}}",
-                "rightValue": false,
-                "operator": {
-                  "type": "boolean",
-                  "operation": "equals"
-                }
-              },
-              {
-                "leftValue": "={{$json.alreadyMerging}}",
-                "rightValue": false,
-                "operator": {
-                  "type": "boolean",
-                  "operation": "equals"
-                }
-              }
-            ],
-            "combinator": "and"
-          }
-        },
-        "id": "d0b6a2a1-3d9d-4f0d-8a03-e94b2d9c6006",
-        "name": "IF: Trigger merge now?",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2,
-        "position": [
-          560,
-          200
-        ]
-      },
-      {
-        "parameters": {
-          "operation": "update",
-          "documentId": {
-            "__rl": true,
-            "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
-            "mode": "id"
-          },
-          "sheetName": {
-            "__rl": true,
-            "value": "gid=0",
-            "mode": "list"
-          },
-          "columns": {
-            "mappingMode": "defineBelow",
-            "value": {
-              "story_id": "={{$json.story_id}}",
-              "status": "MERGING",
-              "updated_at": "={{$now.toISO()}}"
-            },
-            "matchingColumns": [
-              "story_id"
-            ],
-            "attemptToConvertTypes": false,
-            "convertFieldsToString": false
-          },
-          "options": {}
-        },
-        "id": "d0b6a2a1-3d9d-4f0d-8a03-e94b2d9c6007",
-        "name": "GS: Set story MERGING (guard)",
-        "type": "n8n-nodes-base.googleSheets",
-        "typeVersion": 4,
-        "position": [
-          800,
-          120
-        ],
-        "credentials": {
-          "googleSheetsOAuth2Api": {
-            "id": "REPLACE_WITH_YOURS",
-            "name": "Google Sheets account"
-          }
-        }
-      },
-      {
-        "parameters": {
-          "method": "POST",
-          "url": "http://127.0.0.1:5055/process",
-          "sendBody": true,
-          "contentType": "json",
-          "bodyParameters": {
-            "parameters": [
-              {
-                "name": "storyId",
-                "value": "={{$json.story_id}}"
-              },
-              {
-                "name": "clips",
-                "value": "={{$json.clips}}"
-              },
-              {
-                "name": "webhookUrl",
-                "value": "http://localhost:5678/webhook/media_done"
-              }
-            ]
-          },
-          "options": {
-            "timeout": 900000,
-            "retry": {
-              "maxTries": 2,
-              "waitBetweenTries": 3000
-            }
-          }
-        },
-        "id": "d0b6a2a1-3d9d-4f0d-8a03-e94b2d9c6008",
-        "name": "HTTP: /process (merge/captions/music)",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.3,
-        "position": [
-          800,
-          280
-        ]
-      }
-    ],
-    "connections": {
-      "Webhook: sora_done": {
-        "main": [
-          [
-            {
-              "node": "Code: Normalize sora_done payload",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Code: Normalize sora_done payload": {
-        "main": [
-          [
-            {
-              "node": "GS: Update row (DONE/ERROR)",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "GS: Update row (DONE/ERROR)": {
-        "main": [
-          [
-            {
-              "node": "GS: Get ALL rows for story_id",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "GS: Get ALL rows for story_id": {
-        "main": [
-          [
-            {
-              "node": "Code: ready==6 + idempotency flags",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Code: ready==6 + idempotency flags": {
-        "main": [
-          [
-            {
-              "node": "IF: Trigger merge now?",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "IF: Trigger merge now?": {
-        "main": [
-          [
-            {
-              "node": "GS: Set story MERGING (guard)",
-              "type": "main",
-              "index": 0
-            }
-          ],
-          []
-        ]
-      },
-      "GS: Set story MERGING (guard)": {
-        "main": [
-          [
-            {
-              "node": "HTTP: /process (merge/captions/music)",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      }
-    },
-    "active": true,
-    "settings": {
-      "executionOrder": "v1",
-      "saveExecutionProgress": true,
-      "executionTimeout": 3600
-    },
-    "id": "SORAQUEUE_SORADONE_V1",
-    "tags": []
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
   },
-  {
-    "name": "SoraQueue - Media Done Webhook (Mark MERGED_DONE + video_url)",
-    "nodes": [
-      {
-        "parameters": {
-          "httpMethod": "POST",
-          "path": "media_done",
-          "options": {}
-        },
-        "id": "a1b7c27a-fe14-44f7-b9b8-720a6c76724f",
-        "name": "Webhook: media_done",
-        "type": "n8n-nodes-base.webhook",
-        "typeVersion": 2.1,
-        "position": [
-          -520,
-          200
-        ],
-        "webhookId": "media_done_prod_v1"
-      },
-      {
-        "parameters": {
-          "jsCode": "const body = ($json.body || {});\nconst result = (body.result || {});\n\nconst mergedDone = !!result.merged_done;\n\nreturn [{\n  story_id: body.storyId || '',\n  status: mergedDone ? 'MERGED_DONE' : 'ERROR',\n  video_url: mergedDone ? (result.output_video || '') : '',\n  last_error: mergedDone ? '' : String(body.stderr || body.stdout || 'merge failed').slice(0,1500),\n  updated_at: new Date().toISOString(),\n  merged_done: mergedDone,\n}];"
-        }
-      },
-      {
-        "id": "a1b7c27a-fe14-44f7-b9b8-720a6c76724g",
-        "name": "Code: Normalize media_done",
-        "type": "n8n-nodes-base.code",
-        "typeVersion": 2,
-        "position": [
-          -280,
-          200
-        ]
-      },
-      {
-        "parameters": {
-          "operation": "update",
-          "documentId": {
-            "__rl": true,
-            "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
-            "mode": "id"
-          },
-          "sheetName": {
-            "__rl": true,
-            "value": "gid=0",
-            "mode": "list"
-          },
-          "columns": {
-            "mappingMode": "defineBelow",
-            "value": {
-              "story_id": "={{$json.story_id}}",
-              "status": "={{$json.status}}",
-              "video_url": "={{$json.video_url}}",
-              "last_error": "={{$json.last_error}}",
-              "updated_at": "={{$json.updated_at}}"
-            },
-            "matchingColumns": [
-              "story_id"
-            ],
-            "attemptToConvertTypes": false,
-            "convertFieldsToString": false
-          },
-          "options": {}
-        },
-        "id": "a1b7c27a-fe14-44f7-b9b8-720a6c76724h",
-        "name": "GS: Mark story MERGED_DONE (or ERROR)",
-        "type": "n8n-nodes-base.googleSheets",
-        "typeVersion": 4,
-        "position": [
-          -40,
-          200
-        ],
-        "credentials": {
-          "googleSheetsOAuth2Api": {
-            "id": "REPLACE_WITH_YOURS",
-            "name": "Google Sheets account"
-          }
-        }
-      }
-    ],
-    "connections": {
-      "Webhook: media_done": {
-        "main": [
-          [
-            {
-              "node": "Code: Normalize media_done",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Code: Normalize media_done": {
-        "main": [
-          [
-            {
-              "node": "GS: Mark story MERGED_DONE (or ERROR)",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      }
+  "versionId": "professional-workflow-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "professional-sora-automation"
+  },
+  "id": "SoraQueue-Merge-Post-YT-TT",
+  "tags": [
+    {
+      "createdAt": "2026-01-29T00:00:00.000Z",
+      "updatedAt": "2026-01-29T00:00:00.000Z",
+      "id": "1",
+      "name": "Production"
     },
-    "active": true,
-    "settings": {
-      "executionOrder": "v1",
-      "saveExecutionProgress": true,
-      "executionTimeout": 3600
-    },
-    "id": "SORAQUEUE_MEDIADONE_V1",
-    "tags": []
-  }
-]
+    {
+      "createdAt": "2026-01-29T00:00:00.000Z",
+      "updatedAt": "2026-01-29T00:00:00.000Z",
+      "id": "2",
+      "name": "Automation"
+    }
+  ]
+}
