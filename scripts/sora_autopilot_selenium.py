@@ -622,9 +622,28 @@ def open_overflow_menu(driver, logger: RunLogger, timeout=12) -> bool:
                 driver.execute_script("window.focus();")
                 ActionChains(driver).move_by_offset(1, 1).perform()
                 time.sleep(1)
+                
+                # RE-CHECK after focus/move
+                candidates = driver.find_elements(By.XPATH, strong_xpath)
+                if not candidates:
+                    candidates = driver.find_elements(By.XPATH, fallback_xpath)
+                
+                if not candidates:
+                    # Still nothing? Try reload once.
+                    logger.log("⚠️ Still no menu found; refreshing page...")
+                    driver.refresh()
+                    time.sleep(5)
+                    wait_loading_gone(driver, logger)
+                    
+                    # Try again after refresh
+                    candidates = driver.find_elements(By.XPATH, strong_xpath)
+                    if not candidates:
+                         candidates = driver.find_elements(By.XPATH, fallback_xpath)
             except Exception:
                 pass
-            return False
+            
+            if not candidates:
+                return False
 
     # Ensure window is focused before clicking
     try:
