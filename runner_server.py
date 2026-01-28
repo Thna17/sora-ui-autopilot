@@ -85,6 +85,7 @@ class Job(BaseModel):
     scene: int
     rowId: Optional[Union[str, int]] = None
     webhookUrl: Optional[str] = None
+    chromeProfile: Optional[str] = None
 
 
 def run_job_background(job_id: str, job: Job):
@@ -92,12 +93,30 @@ def run_job_background(job_id: str, job: Job):
     scene = int(job.scene)
     row_id = str(job.rowId).strip() if job.rowId is not None else ""
     prompt = (job.prompt or "").strip()
+    chrome_profile = (job.chromeProfile or "").strip()
 
     JOBS[job_id]["status"] = "running"
     JOBS[job_id]["started_at"] = time.time()
 
+    env = os.environ.copy()
+    if chrome_profile:
+        # Resolve profile path. If it's a name, verify existence in PROFILES_ROOT.
+        # Note: PROFILES_ROOT is defined later in this file, but available at runtime.
+        # To be safe, we re-derive or check if global exists.
+        profiles_root_Runtime = globals().get("PROFILES_ROOT", os.path.join(BASE_DIR, "chrome_profiles"))
+        
+        # Check if direct path or name
+        if os.path.isabs(chrome_profile) and os.path.isdir(chrome_profile):
+             env["SORA_CHROME_PROFILE"] = chrome_profile
+        else:
+             candidate = os.path.join(profiles_root_Runtime, chrome_profile)
+             if os.path.isdir(candidate):
+                 env["SORA_CHROME_PROFILE"] = candidate
+             else:
+                 print(f"[WARN] Chrome profile '{chrome_profile}' not found in {profiles_root_Runtime}. Using default.", flush=True)
+
     cmd = [PYTHON, SORA_SCRIPT, prompt, row_id, story_id, str(scene)]
-    proc = subprocess.run(cmd, capture_output=True, text=True, env=os.environ.copy())
+    proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
     out = proc.stdout or ""
     err = proc.stderr or ""
