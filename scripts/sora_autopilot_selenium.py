@@ -127,6 +127,12 @@ def build_driver(logger: RunLogger):
     options.add_argument("--profile-directory=Default")
     options.add_argument("--disable-popup-blocking")
 
+    # Background throttling fixes (must be before driver init)
+    options.add_argument("--disable-backgrounding-occluded-windows")
+    options.add_argument("--disable-renderer-backgrounding")
+    options.add_argument("--disable-background-timer-throttling")
+    options.add_argument("--disable-background-networking")
+
     prefs = {
         "download.default_directory": DOWNLOAD_DIR,
         "download.prompt_for_download": False,
@@ -139,14 +145,9 @@ def build_driver(logger: RunLogger):
 
     try:
         driver.execute_cdp_cmd("Page.setDownloadBehavior", {"behavior": "allow", "downloadPath": DOWNLOAD_DIR})
+        logger.log(f"✅ Download behavior set: {DOWNLOAD_DIR}")
     except Exception as e:
-        logger.log(f"⚠️ Could not set download behavior via CDP: {e}")
-
-    # Add flags to prevent background throttling
-    options.add_argument("--disable-backgrounding-occluded-windows")
-    options.add_argument("--disable-renderer-backgrounding")
-    options.add_argument("--disable-background-timer-throttling")
-    options.add_argument("--disable-background-networking") 
+        logger.log(f"⚠️ Could not set download behavior via CDP: {e}") 
 
 
     # User requested tablet-like size, not full screen
