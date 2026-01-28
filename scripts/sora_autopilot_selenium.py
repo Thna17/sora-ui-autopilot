@@ -143,6 +143,12 @@ def build_driver(logger: RunLogger):
     except Exception as e:
         logger.log(f"⚠️ Could not set download behavior via CDP: {e}")
 
+    # User requested tablet-like size, not full screen
+    try:
+        driver.set_window_size(1024, 768)
+    except Exception:
+        pass
+
     return driver
 
 
@@ -415,8 +421,17 @@ def sora_type_and_submit(driver, prompt: str, logger: RunLogger, timeout=30):
             best.send_keys(prompt[i : i + 200])
             time.sleep(0.02)
 
+    # User requested: type keys (like space) to ensure submit button appears
+    time.sleep(0.5)
     best.send_keys(" ")
-    best.send_keys(Keys.BACKSPACE)
+    time.sleep(0.8)
+    
+    # Optional: trigger input event via JS to be sure
+    try:
+        driver.execute_script("arguments[0].dispatchEvent(new Event('input', {bubbles:true}));", best)
+    except Exception:
+        pass
+
     try:
         best.send_keys(Keys.ENTER)
     except WebDriverException as e:

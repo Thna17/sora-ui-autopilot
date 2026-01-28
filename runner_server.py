@@ -22,6 +22,11 @@ SORA_SCRIPT = os.environ.get(
     os.path.join(BASE_DIR, "scripts", "sora_autopilot_selenium.py")
 )
 
+VEO_SCRIPT = os.environ.get(
+    "VEO_SCRIPT",
+    os.path.join(BASE_DIR, "scripts", "veo_autopilot.py")
+)
+
 MEDIA_SCRIPT = os.environ.get(
     "SORA_MEDIA_SCRIPT",
     os.path.join(BASE_DIR, "scripts", "media_pipeline.py")
@@ -115,7 +120,15 @@ def run_job_background(job_id: str, job: Job):
              else:
                  print(f"[WARN] Chrome profile '{chrome_profile}' not found in {profiles_root_Runtime}. Using default.", flush=True)
 
-    cmd = [PYTHON, SORA_SCRIPT, prompt, row_id, story_id, str(scene)]
+    # Dispatch logic based on profile name prefix
+    target_script = SORA_SCRIPT
+    if chrome_profile.lower().startswith("veo"):
+        target_script = VEO_SCRIPT
+        print(f"[Dispatcher] Profile starts with 'veo' -> Using VEO_SCRIPT: {target_script}")
+    else:
+        print(f"[Dispatcher] Using SORA_SCRIPT: {target_script}")
+
+    cmd = [PYTHON, target_script, prompt, row_id, story_id, str(scene)]
     proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
     out = proc.stdout or ""
