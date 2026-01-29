@@ -141,7 +141,7 @@ def build_driver(logger: RunLogger):
     }
     options.add_experimental_option("prefs", prefs)
 
-    driver = uc.Chrome(options=options, user_data_dir=PROFILE_DIR)
+    driver = uc.Chrome(options=options, user_data_dir=PROFILE_DIR, version_main=144)
 
     try:
         driver.execute_cdp_cmd("Page.setDownloadBehavior", {"behavior": "allow", "downloadPath": DOWNLOAD_DIR})
