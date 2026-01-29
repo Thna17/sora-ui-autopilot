@@ -971,9 +971,8 @@ def run_one(prompt: str, row_id: str | None):
             baseline_link = get_newest_draft_link(driver, logger, timeout=30)
         except Exception:
             baseline_link = None
-            logger.log("⚠️ Baseline link not available; stopping before Explore.")
-            logger.log("Browser left open for debugging.")
-            return 1
+            logger.log("⚠️ No baseline draft found (maybe first run or empty state). Proceeding with None.")
+            # Do NOT return 1 here; we want to continue to Explore so we can create the first draft.
 
         logger.log("🌐 Opening Sora Explore...")
         driver.get(SORA_EXPLORE_URL)
