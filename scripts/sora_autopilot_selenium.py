@@ -960,10 +960,12 @@ def download_from_detail_link(driver, logger: RunLogger, detail_url: str, row_id
 # -----------------------
 def run_one(prompt: str, row_id: str | None):
     logger = RunLogger(row_id)
-    driver = build_driver(logger)
+    driver = None
     start_ts = time.time()
 
     try:
+        driver = build_driver(logger)
+
         logger.log("📝 Drafts → get newest tile link (baseline)...")
         try:
             baseline_link = get_newest_draft_link(driver, logger, timeout=30)
@@ -1046,8 +1048,11 @@ def run_one(prompt: str, row_id: str | None):
         logger.log(f"❌ FAILED: {e}")
         logger.log(tb[-2500:])
         logger.log(f"elapsed={elapsed}s")
-        save_debug(driver, logger, "exception")
-        logger.log("Browser left open for debugging.")
+        if driver:
+            save_debug(driver, logger, "exception")
+            logger.log("Browser left open for debugging.")
+        else:
+            logger.log("Driver failed to initialize.")
         return 1
 
 
