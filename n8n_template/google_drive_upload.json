@@ -1,0 +1,290 @@
+{
+  "name": "MERGED_DONE → Google Drive → YouTube Upload (HTTP Resumable)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual",
+      "name": "When clicking ‘Test workflow’",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-700, 0]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "drive_file_id",
+              "value": "1gVqvDtCgYGhhBOJbl4IIpd813v-rbUyc"
+            },
+            {
+              "name": "yt_title",
+              "value": "TEST title"
+            },
+            {
+              "name": "yt_description",
+              "value": "test description"
+            },
+            {
+              "name": "yt_tags_csv",
+              "value": "test, tags"
+            },
+            {
+              "name": "yt_privacy",
+              "value": "public"
+            },
+            {
+              "name": "yt_category_id",
+              "value": "24"
+            },
+            {
+              "name": "upload_mime",
+              "value": "video/mp4"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set_input",
+      "name": "Set - Inputs (edit me)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [-480, 0]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": "={{$json.drive_file_id}}",
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "id": "gdrive_download",
+      "name": "Google Drive - Download Video",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [-240, 0],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_GDRIVE_CRED_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/*\n  Build the YouTube metadata body.\n  - YouTube API expects tags as an array, not CSV.\n*/\n\nconst tagsCsv = ($json.yt_tags_csv || '').toString();\nconst tags = tagsCsv\n  .split(',')\n  .map(s => s.trim())\n  .filter(Boolean);\n\nreturn [\n  {\n    json: {\n      ...$json,\n      yt_tags: tags,\n      yt_body: {\n        snippet: {\n          title: ($json.yt_title || 'Untitled').toString(),\n          description: ($json.yt_description || '').toString(),\n          tags,\n          categoryId: ($json.yt_category_id || '22').toString(),\n          defaultLanguage: 'en',\n          defaultAudioLanguage: 'en'\n        },\n        status: {\n          privacyStatus: ($json.yt_privacy || 'public').toString(),\n          license: 'youtube',\n          embeddable: true,\n          publicStatsViewable: true,\n          madeForKids: false\n        }\n      }\n    }\n  }\n];\n"
+      },
+      "id": "code_build_body",
+      "name": "Code - Build YouTube body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [10, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=resumable",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json; charset=UTF-8"
+            },
+            {
+              "name": "X-Upload-Content-Type",
+              "value": "={{$json.upload_mime || 'video/mp4'}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{$json.yt_body}}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "yt_init",
+      "name": "YouTube - Init Resumable Upload (HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [270, 0],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_YT_CRED_ID",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/*\n  Extract resumable upload URL from init response.\n  n8n fullResponse puts headers on: $json.headers\n*/\n\nconst headers = $json.headers || {};\nconst uploadUrl = headers.location || headers.Location || '';\n\nif (!uploadUrl) {\n  throw new Error('Missing resumable upload URL (headers.location). Check YouTube init request + OAuth scope youtube.upload');\n}\n\nreturn [{ json: { ...$json, yt_upload_url: uploadUrl } }];\n"
+      },
+      "id": "code_extract_location",
+      "name": "Code - Extract upload URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [520, 0]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{$json.yt_upload_url}}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "={{$node['Set - Inputs (edit me)'].json.upload_mime || 'video/mp4'}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "timeout": 3600000
+        }
+      },
+      "id": "yt_put",
+      "name": "YouTube - Upload Binary (PUT)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [780, 0],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_YT_CRED_ID",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "youtube_video_id",
+              "value": "={{$json.id}}"
+            },
+            {
+              "name": "youtube_url",
+              "value": "={{$json.id ? `https://www.youtube.com/watch?v=${$json.id}` : ''}}"
+            },
+            {
+              "name": "youtube_status",
+              "value": "POSTED_YOUTUBE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set_result",
+      "name": "Set - Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [1040, 0]
+    }
+  ],
+  "connections": {
+    "When clicking ‘Test workflow’": {
+      "main": [
+        [
+          {
+            "node": "Set - Inputs (edit me)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Inputs (edit me)": {
+      "main": [
+        [
+          {
+            "node": "Google Drive - Download Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive - Download Video": {
+      "main": [
+        [
+          {
+            "node": "Code - Build YouTube body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Build YouTube body": {
+      "main": [
+        [
+          {
+            "node": "YouTube - Init Resumable Upload (HTTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube - Init Resumable Upload (HTTP)": {
+      "main": [
+        [
+          {
+            "node": "Code - Extract upload URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Extract upload URL": {
+      "main": [
+        [
+          {
+            "node": "YouTube - Upload Binary (PUT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube - Upload Binary (PUT)": {
+      "main": [
+        [
+          {
+            "node": "Set - Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true
+  },
+  "versionId": "1",
+  "meta": {
+    "note": "Replace credential IDs for Google Drive + YouTube nodes. Edit drive_file_id + title/desc/tags in 'Set - Inputs'."
+  },
+  "id": "YT_GDrive_HTTP_Resumable",
+  "tags": []
+}

@@ -27,8 +27,18 @@ def main():
     options.add_experimental_option("prefs", prefs)
     
     try:
-        driver = uc.Chrome(options=options, user_data_dir=profile_path)
-        print("Browser launched. Keep this script running to keep browser open.")
+        # Force ChromeDriver version 144 to match your Chrome 144
+        # Change this number if you update Chrome later
+        driver = uc.Chrome(
+            options=options,
+            user_data_dir=profile_path,
+            version_main=144,  # Match your Chrome version (144.0.7559.110)
+            use_subprocess=False,
+            driver_executable_path=None
+        )
+        print("✅ Browser launched successfully!")
+        print(f"Chrome version: 144.x (matched ChromeDriver 144)")
+        print("Keep this script running to keep browser open.")
         
         driver.get("https://sora.chatgpt.com/")
         

@@ -94,68 +94,82 @@ class Job(BaseModel):
 
 
 def run_job_background(job_id: str, job: Job):
-    story_id = job.storyId.strip()
-    scene = int(job.scene)
-    row_id = str(job.rowId).strip() if job.rowId is not None else ""
-    prompt = (job.prompt or "").strip()
-    chrome_profile = (job.chromeProfile or "").strip()
+    try:
+        story_id = job.storyId.strip()
+        scene = int(job.scene)
+        row_id = str(job.rowId).strip() if job.rowId is not None else ""
+        prompt = (job.prompt or "").strip()
+        chrome_profile = (job.chromeProfile or "").strip()
 
-    JOBS[job_id]["status"] = "running"
-    JOBS[job_id]["started_at"] = time.time()
+        JOBS[job_id]["status"] = "running"
+        JOBS[job_id]["started_at"] = time.time()
 
-    env = os.environ.copy()
-    if chrome_profile:
-        # Resolve profile path. If it's a name, verify existence in PROFILES_ROOT.
-        # Note: PROFILES_ROOT is defined later in this file, but available at runtime.
-        # To be safe, we re-derive or check if global exists.
-        profiles_root_Runtime = globals().get("PROFILES_ROOT", os.path.join(BASE_DIR, "chrome_profiles"))
-        
-        # Check if direct path or name
-        if os.path.isabs(chrome_profile) and os.path.isdir(chrome_profile):
-             env["SORA_CHROME_PROFILE"] = chrome_profile
+        env = os.environ.copy()
+        if chrome_profile:
+            # Resolve profile path. If it's a name, verify existence in PROFILES_ROOT.
+            # Note: PROFILES_ROOT is defined later in this file, but available at runtime.
+            # To be safe, we re-derive or check if global exists.
+            profiles_root_Runtime = globals().get("PROFILES_ROOT", os.path.join(BASE_DIR, "chrome_profiles"))
+            
+            # Check if direct path or name
+            if os.path.isabs(chrome_profile) and os.path.isdir(chrome_profile):
+                 env["SORA_CHROME_PROFILE"] = chrome_profile
+            else:
+                 candidate = os.path.join(profiles_root_Runtime, chrome_profile)
+                 if os.path.isdir(candidate):
+                     env["SORA_CHROME_PROFILE"] = candidate
+                 else:
+                     print(f"[WARN] Chrome profile '{chrome_profile}' not found in {profiles_root_Runtime}. Using default.", flush=True)
+
+        # Dispatch logic based on profile name prefix
+        target_script = SORA_SCRIPT
+        if chrome_profile and chrome_profile.lower().startswith("veo"):
+            target_script = VEO_SCRIPT
+            print(f"[Dispatcher] Profile starts with 'veo' -> Using VEO_SCRIPT: {target_script}", flush=True)
         else:
-             candidate = os.path.join(profiles_root_Runtime, chrome_profile)
-             if os.path.isdir(candidate):
-                 env["SORA_CHROME_PROFILE"] = candidate
-             else:
-                 print(f"[WARN] Chrome profile '{chrome_profile}' not found in {profiles_root_Runtime}. Using default.", flush=True)
+            print(f"[Dispatcher] Using SORA_SCRIPT: {target_script}", flush=True)
 
-    # Dispatch logic based on profile name prefix
-    target_script = SORA_SCRIPT
-    if chrome_profile.lower().startswith("veo"):
-        target_script = VEO_SCRIPT
-        print(f"[Dispatcher] Profile starts with 'veo' -> Using VEO_SCRIPT: {target_script}")
-    else:
-        print(f"[Dispatcher] Using SORA_SCRIPT: {target_script}")
+        cmd = [PYTHON, target_script, prompt, row_id, story_id, str(scene)]
+        print(f"[Job {job_id}] Running: {' '.join(cmd[:2])} ...", flush=True)
+        proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
-    cmd = [PYTHON, target_script, prompt, row_id, story_id, str(scene)]
-    proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        out = proc.stdout or ""
+        err = proc.stderr or ""
+        parsed = parse_marker(out)
 
-    out = proc.stdout or ""
-    err = proc.stderr or ""
-    parsed = parse_marker(out)
+        result = {
+            "ok": proc.returncode == 0,
+            "exitCode": proc.returncode,
+            "jobId": job_id,
+            "rowId": row_id,
+            "storyId": story_id,
+            "scene": scene,
+            "stdout": out[-8000:],
+            "stderr": err[-8000:],
+            "result": parsed or {},
+        }
 
-    result = {
-        "ok": proc.returncode == 0,
-        "exitCode": proc.returncode,
-        "jobId": job_id,
-        "rowId": row_id,
-        "storyId": story_id,
-        "scene": scene,
-        "stdout": out[-8000:],
-        "stderr": err[-8000:],
-        "result": parsed or {},
-    }
+        JOBS[job_id]["status"] = "done" if result["ok"] else "error"
+        JOBS[job_id]["finished_at"] = time.time()
+        JOBS[job_id]["result"] = result
 
-    JOBS[job_id]["status"] = "done" if result["ok"] else "error"
-    JOBS[job_id]["finished_at"] = time.time()
-    JOBS[job_id]["result"] = result
-
-    # ✅ only callback after finished download
-    finished = bool(result.get("result", {}).get("finished"))
-    if job.webhookUrl and result["ok"] and finished:
-        callback_payload = {"jobId": job_id, "status": JOBS[job_id]["status"], **result}
-        post_webhook(job.webhookUrl, callback_payload, job_id=job_id, store=JOBS)
+        # ✅ only callback after finished download
+        finished = bool(result.get("result", {}).get("finished"))
+        if job.webhookUrl and result["ok"] and finished:
+            callback_payload = {"jobId": job_id, "status": JOBS[job_id]["status"], **result}
+            post_webhook(job.webhookUrl, callback_payload, job_id=job_id, store=JOBS)
+    
+    except Exception as e:
+        import traceback
+        error_msg = f"Job {job_id} crashed: {e}\n{traceback.format_exc()}"
+        print(f"[ERROR] {error_msg}", flush=True)
+        JOBS[job_id]["status"] = "error"
+        JOBS[job_id]["finished_at"] = time.time()
+        JOBS[job_id]["result"] = {
+            "ok": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
 
 
 @app.post("/run_async")
@@ -352,7 +366,14 @@ def process_status(job_id: str):
 
 @app.get("/routes")
 def routes():
-    return sorted([f"{r.path} [{','.join(sorted(r.methods or []))}]" for r in app.router.routes])
+    result = []
+    for r in app.router.routes:
+        # Skip routes without methods (like Mount for static files)
+        if not hasattr(r, 'methods'):
+            continue
+        methods = ','.join(sorted(r.methods or []))
+        result.append(f"{r.path} [{methods}]")
+    return sorted(result)
 
 
 # ============================================================

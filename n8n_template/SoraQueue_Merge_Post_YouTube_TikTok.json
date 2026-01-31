@@ -1,0 +1,2118 @@
+{
+  "name": "SoraQueue \u2192 Merge + Captions + Music (No Exec Nodes) + Post YouTube/TikTok",
+  "nodes": [
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "updated_at",
+              "value": "={{$now.toISO()}}"
+            },
+            {
+              "name": "status",
+              "value": "RUNNING"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set RUNNING fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        336,
+        -48
+      ],
+      "id": "2b68a2de-d34c-4c23-9939-85e54df05756"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {
+            "status": "={{ $json.status }}",
+            "updated_at": "={{ $json.updated_at }}",
+            "row_number": "={{ $json.row_number }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "story_id",
+              "displayName": "story_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "scene",
+              "displayName": "scene",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "duration_sec",
+              "displayName": "duration_sec",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "resolution",
+              "displayName": "resolution",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "video_url",
+              "displayName": "video_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "local_path",
+              "displayName": "local_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "run_at",
+              "displayName": "run_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "last_error",
+              "displayName": "last_error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "headers",
+              "displayName": "headers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "params",
+              "displayName": "params",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "body",
+              "displayName": "body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "webhookUrl",
+              "displayName": "webhookUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "executionMode",
+              "displayName": "executionMode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "name": "GS: Update row \u2192 RUNNING",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        544,
+        -48
+      ],
+      "id": "a249fbd4-7d49-4021-9f13-942fbde32c1f",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/run_async",
+        "sendBody": true,
+        "contentType": "=json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "prompt",
+              "value": "={{ $json.prompt }}"
+            },
+            {
+              "name": "storyId",
+              "value": "={{ $json.story_id }}"
+            },
+            {
+              "name": "scene",
+              "value": "={{ $json.scene }}"
+            },
+            {
+              "name": "rowId",
+              "value": "={{ $json.row_number }}"
+            },
+            {
+              "name": "webhookUrl",
+              "value": "={{ $json.webhookUrl }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        784,
+        -48
+      ],
+      "id": "f5cd23ef-584e-4ca7-9edb-6402eaf1672b",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -592,
+        240
+      ],
+      "id": "6af88483-ac98-4189-9f75-28be136f94c5",
+      "name": "When clicking \u2018Execute workflow\u2019"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "status",
+              "lookupValue": "NEW"
+            }
+          ]
+        },
+        "combineFilters": "AND",
+        "options": {}
+      },
+      "name": "GS: Get 1 NEW row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        -288,
+        432
+      ],
+      "id": "e6bcd17a-8861-443c-9dc9-ee85323ee592",
+      "alwaysOutputData": false,
+      "executeOnce": false,
+      "notesInFlow": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "5ab1d918-c1f7-4817-bfe8-2b6a0514b12f",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "=NEW",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "IF: found row?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        112,
+        -32
+      ],
+      "id": "2c3b90ac-fbb1-4330-abf1-395b45ddbc7a"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Webhook trigger payload structure:\n// $json = { headers, params, query, body, ... }\n// Your fields are inside $json.body\n\nconst root = $json || {};\nconst body = root.body || {};          // <-- IMPORTANT\nconst result = body.result || {};\n\nconst stdout = body.stdout || \"\";\nconst stderr = body.stderr || \"\";\n\nconst downloadedFilename =\n  result.downloaded_filename ||\n  body.downloaded_filename ||\n  \"\";\n\nconst localPath =\n  result.downloaded_path ||\n  body.local_path ||\n  \"\";\n\nconst projectDownloadDir =\n  result.download_dir ||\n  body.downloadDir ||\n  \"/Users/macbookpro/iCloud Drive (Archive) - 2/Desktop/Desktop - Brathna/Project - Coding/sora-autopilot/sora-ui-autopilot/downloads\";\n\nconst fixedLocalPath =\n  localPath ||\n  (downloadedFilename ? `${projectDownloadDir}/${downloadedFilename}` : \"\");\n\nconst rowId = body.rowId !== undefined && body.rowId !== null ? String(body.rowId) : \"\";\nconst scene = body.scene !== undefined && body.scene !== null ? Number(body.scene) : null;\n\nreturn [\n  {\n    jobId: body.jobId || \"\",\n    rowId,\n    storyId: body.storyId || \"\",\n    scene,\n\n    ok: !!body.ok,\n    status: body.status || \"\",\n    exitCode: body.exitCode ?? null,\n\n    stdout,\n    stderr,\n\n    downloaded_filename: downloadedFilename,\n    local_path: fixedLocalPath,\n    downloadDir: projectDownloadDir,\n\n    newest_link: result.newest_link || \"\",\n    log_file: result.log_file || \"\",\n    started: !!result.started,\n    finished: !!result.finished,\n\n    webhookUrl: body.webhookUrl || \"\",\n    executionMode: body.executionMode || \"\",\n\n    updated_at: new Date().toISOString(),\n  },\n];\n"
+      },
+      "id": "26463964-a77d-46c6-a473-f10fe48ac02b",
+      "name": "Code: Parse stdout \u2192 local_path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "story_id",
+              "value": "={{ $json.storyId }}"
+            },
+            {
+              "name": "status",
+              "value": "DONE"
+            },
+            {
+              "name": "local_path",
+              "value": "={{ $json.local_path }}"
+            },
+            {
+              "name": "updated_at",
+              "value": "={{$json.updated_at}}"
+            }
+          ],
+          "number": [
+            {
+              "name": "scene",
+              "value": "={{ $json.scene }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a16a3e53-42c9-4f15-a9b8-08acca3be750",
+      "name": "Set DONE fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        576,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "={{ $json.status }}",
+            "story_id": "={{ $json.storyId }}",
+            "updated_at": "={{ $json.updated_at }}",
+            "local_path": "={{ $json.local_path }}",
+            "row_number": "={{ $json.rowId }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "story_id",
+              "displayName": "story_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "scene",
+              "displayName": "scene",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "duration_sec",
+              "displayName": "duration_sec",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "resolution",
+              "displayName": "resolution",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "video_url",
+              "displayName": "video_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "local_path",
+              "displayName": "local_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "run_at",
+              "displayName": "run_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "last_error",
+              "displayName": "last_error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "headers",
+              "displayName": "headers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "params",
+              "displayName": "params",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "body",
+              "displayName": "body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "webhookUrl",
+              "displayName": "webhookUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "executionMode",
+              "displayName": "executionMode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "431400e9-802b-498f-a678-613c15992285",
+      "name": "GS: Update row \u2192 DONE",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        800,
+        224
+      ],
+      "alwaysOutputData": false,
+      "executeOnce": false,
+      "retryOnFail": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY/edit#gid=0"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "story_id",
+              "lookupValue": "={{ $json.story_id }}"
+            }
+          ]
+        },
+        "combineFilters": "AND",
+        "options": {
+          "returnAllMatches": "returnAllMatches"
+        }
+      },
+      "id": "30c04e10-7796-49e0-852f-a9416293b0b5",
+      "name": "GS: Get DONE clips (same story_id)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1024,
+        224
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\n\nconst storyId = rows[0]?.story_id || rows[0]?.storyId || \"\";\nif (!storyId) {\n  return [{ ready: false, reason: \"missing story_id\", story_id: \"\", clips: [], clipCount: 0 }];\n}\n\nconst norm = (s) => String(s || \"\").trim().toUpperCase();\n\n// Decide \u201cnot ready\u201d if any NEW (and optionally RUNNING)\nconst hasNEW = rows.some(r => norm(r.status) === \"NEW\");\nconst hasRUNNING = rows.some(r => norm(r.status) === \"RUNNING\"); // recommended\n\n// Build clips list from anything that has a local_path (usually DONE)\nrows.sort((a,b) => Number(a.scene || 0) - Number(b.scene || 0));\n\nconst clips = rows\n  .filter(r => (r.local_path || \"\").trim())\n  .map(r => ({ scene: Number(r.scene || 0) || null, local_path: r.local_path.trim() }));\n\nconst ready = !hasNEW && !hasRUNNING;\n\nreturn [{\n  ready,\n  story_id: storyId,\n  clipCount: clips.length,\n  clips,\n  hasNEW,\n  hasRUNNING,\n  reason: ready ? \"\" : (hasNEW ? \"still has NEW rows\" : \"still has RUNNING rows\"),\n}];\n"
+      },
+      "id": "dc288ede-48af-4f15-acc1-307a62cae47f",
+      "name": "Code: Check 6 clips + sort",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "b634c44c-68e0-4133-b5c0-8585c8eff82d",
+              "leftValue": "={{ $json.ready }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3640e005-d56d-42f9-8f23-c74cacf84ba9",
+      "name": "IF: have 6 clips?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        128,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const data = $input.item.json;\n\n// 1) Prefer local_path at root\nlet localPath = (data.local_path || \"\").toString().trim();\n\n// 2) Fallback to clips[0].local_path\nif (!localPath && Array.isArray(data.clips) && data.clips[0]?.local_path) {\n  localPath = String(data.clips[0].local_path).trim();\n}\n\n// 3) Fallback to stdout extraction\nif (!localPath) {\n  const stdout = String(data.stdout || \"\");\n  const listMatch = stdout.match(/Detected new file\\(s\\): \\[(.*?)\\]/);\n  if (listMatch) {\n    const mp4 = listMatch[1].match(/'([^']+\\.mp4)'/);\n    if (mp4) {\n      const downloadDir = (data.downloadDir || data.download_dir || \"\").toString().trim();\n      if (!downloadDir) throw new Error(\"Found filename in stdout but missing downloadDir.\");\n      localPath = `${downloadDir}/${mp4[1]}`;\n    }\n  }\n}\n\nif (!localPath) {\n  throw new Error(\"Could not find local_path (root, clips[0], or stdout).\");\n}\n\nconst parts = localPath.split(\"/\").filter(Boolean);\nconst filename = parts[parts.length - 1];\nconst downloadDir = \"/\" + parts.slice(0, -1).join(\"/\");\n\n// \u2705 RETURN AN OBJECT (NOT ARRAY) in Run Once for Each Item mode\nreturn {\n  ...data,\n  local_path: localPath,\n  downloaded_file: filename,\n  download_dir: downloadDir,\n};\n"
+      },
+      "id": "ca7ec8c1-d2f6-4437-ba43-54bcf12f3033",
+      "name": "Code: Extract downloaded file",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8000/process",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "storyId",
+              "value": "={{ $json.story_id }}"
+            },
+            {
+              "name": "clips",
+              "value": "={{ $json.clips }}"
+            },
+            {
+              "name": "ready",
+              "value": "={{ $json.ready }}"
+            },
+            {
+              "name": "webhookUrl",
+              "value": "http://localhost:5678/webhook/media_done"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 900000
+        }
+      },
+      "id": "a6f4ed4b-6055-4963-997f-abebc5e82d84",
+      "name": "HTTP: Media pipeline (merge/captions/music)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        640,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "91437ef5-a675-425d-991f-86798b8722c9",
+              "leftValue": "={{ $json.body.result.merged_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "07e851a7-5d4e-487d-95e0-870fc2605792",
+      "name": "IF: merged done?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        400,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Webhook payload structure:\n// $json.body.result.output_video\n// $json.body.result.output_srt\n\nconst body = $json.body || {};\nconst result = body.result || {};\n\nconst mergedDone = !!result.merged_done;\n\nreturn [{\n  ...$json,\n\n  // normalize status for the workflow\n  status: mergedDone ? 'MERGED_DONE' : (body.status || 'UNKNOWN'),\n\n  // important: these are inside body.result\n  merged_video_path: result.output_video || '',\n  merged_srt_path: result.output_srt || '',\n\n  // optional: keep helpful fields flattened for later nodes\n  jobId: body.jobId || $json.jobId || '',\n  storyId: body.storyId || $json.storyId || '',\n  ok: body.ok ?? false,\n  exitCode: body.exitCode ?? null,\n  merged_done: mergedDone,\n  input_count: result.input_count ?? null,\n\n  updated_at: new Date().toISOString(),\n}];\n"
+      },
+      "id": "d9fdb599-36f6-429f-aaec-a358e79be638",
+      "name": "Code: Map DONE fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  ...$json,\n  status: 'CLIP_SAVED',\n  note: 'Clip stored; waiting for more clips to reach 6.'\n}];"
+      },
+      "id": "20f39cf2-9155-4e40-bf17-60a54eedda5e",
+      "name": "Code: Map WAIT fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": "={{$json.sheet_id}}",
+        "sheetName": "={{$json.sheet_name}}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "816a4272-c35f-4e09-b330-d67d0c92b243",
+      "name": "GS: Mark CLIP_SAVED",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1152,
+        1024
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "story_id": "={{ $json.storyId }}",
+            "status": "MERGED_DONE",
+            "video_url": "={{ $json.merged_video_path }}",
+            "updated_at": "={{ $json.updated_at }}"
+          },
+          "matchingColumns": [
+            "story_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "story_id",
+              "displayName": "story_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "scene",
+              "displayName": "scene",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "duration_sec",
+              "displayName": "duration_sec",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "resolution",
+              "displayName": "resolution",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "video_url",
+              "displayName": "video_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "local_path",
+              "displayName": "local_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "run_at",
+              "displayName": "run_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "last_error",
+              "displayName": "last_error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "headers",
+              "displayName": "headers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "params",
+              "displayName": "params",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "body",
+              "displayName": "body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "webhookUrl",
+              "displayName": "webhookUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "executionMode",
+              "displayName": "executionMode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "abd92614-1aff-42ef-b009-fe0a267830ee",
+      "name": "GS: Mark story MERGED_DONE1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1136,
+        816
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sora_done",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        112,
+        224
+      ],
+      "id": "379b2382-a57b-4982-9927-00a47f3b9663",
+      "name": "Webhook",
+      "webhookId": "4a424985-bc7d-4213-96be-5db21ede0dd4"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "media_done",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        96,
+        912
+      ],
+      "id": "d1b7c27a-fe14-44f7-b9b8-720a6c76724f",
+      "name": "Webhook1",
+      "webhookId": "5790c52b-56a2-43fb-a1b2-1111dd9124b0"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -640,
+        576
+      ],
+      "id": "3cf3322c-9e5f-448a-bbde-7d8bbd55a3ee",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "yt_title",
+              "value": "={{ $json.storyId || $json.story_id || 'Untitled' }}"
+            },
+            {
+              "name": "yt_description",
+              "value": "={{ $json.description || $json.prompt || ('Story ' + ($json.storyId || $json.story_id || '')) }}"
+            },
+            {
+              "name": "yt_tags",
+              "value": "={{ $json.tags || 'ai,shorts' }}"
+            },
+            {
+              "name": "yt_categoryId",
+              "value": "24"
+            },
+            {
+              "name": "yt_privacy",
+              "value": "public"
+            }
+          ]
+        }
+      },
+      "id": "ede95d95-78c4-4513-8731-aaeb31a6dd25",
+      "name": "Set: YouTube metadata",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        3260,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "filePath": "={{ $json.merged_video_path || $json.video_url }}",
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "id": "b2f31d26-9b03-4629-a451-41a61aaf878e",
+      "name": "Read Binary (merged video)",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        3500,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=resumable",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json; charset=UTF-8"
+            },
+            {
+              "name": "X-Upload-Content-Type",
+              "value": "video/mp4"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "RAW/JSON",
+        "body": "={\n  \"snippet\": {\n    \"title\": $json.yt_title,\n    \"description\": $json.yt_description,\n    \"tags\": ($json.yt_tags || '').toString().split(',').map(t => t.trim()).filter(Boolean),\n    \"categoryId\": $json.yt_categoryId,\n    \"defaultLanguage\": \"en\",\n    \"defaultAudioLanguage\": \"en\"\n  },\n  \"status\": {\n    \"privacyStatus\": $json.yt_privacy,\n    \"license\": \"youtube\",\n    \"embeddable\": true,\n    \"publicStatsViewable\": true,\n    \"madeForKids\": false\n  }\n}\n",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "73296350-2392-4b14-b4a5-1a5962eb3f13",
+      "name": "HTTP: YouTube init (resumable)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        3740,
+        100
+      ],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "Ihr83HTOaXDm03rq",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $node[\"HTTP: YouTube init (resumable)\"].json.headers.location }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "video/mp4"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "id": "c65feee8-4e57-4c5a-a109-681127507c24",
+      "name": "HTTP: YouTube upload (PUT video)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        3980,
+        100
+      ],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "Ihr83HTOaXDm03rq",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "youtube_video_id",
+              "value": "={{ $json.id || $json.videoId || '' }}"
+            },
+            {
+              "name": "youtube_url",
+              "value": "={{ ($json.id || $json.videoId) ? 'https://www.youtube.com/watch?v=' + ($json.id || $json.videoId) : '' }}"
+            },
+            {
+              "name": "youtube_status",
+              "value": "POSTED_YOUTUBE"
+            }
+          ]
+        }
+      },
+      "id": "71a7bc4d-79a5-4d86-8104-beb943c7c27e",
+      "name": "Set: YouTube sheet fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        4220,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "story_id": "={{ $json.storyId || $json.story_id }}",
+            "youtube_status": "={{ $json.youtube_status }}",
+            "youtube_video_id": "={{ $json.youtube_video_id }}",
+            "youtube_url": "={{ $json.youtube_url }}",
+            "updated_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [
+            "story_id"
+          ],
+          "schema": [
+            {
+              "id": "story_id",
+              "displayName": "story_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "youtube_status",
+              "displayName": "youtube_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "youtube_video_id",
+              "displayName": "youtube_video_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "youtube_url",
+              "displayName": "youtube_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "c7060ccf-791c-4f64-8ef8-f684f943df3d",
+      "name": "GS: Update story \u2192 POSTED_YOUTUBE",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        4460,
+        100
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.tiktok_video_url || $json.merged_video_url || '' }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "567f1b44-45f0-4831-9e65-2562bef9359f",
+      "name": "IF: has TikTok public URL?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4700,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/post/publish/video/init/",
+        "authentication": "oAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json; charset=UTF-8"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={\n  \"post_info\": {\n    \"title\": ($json.tk_caption || $json.yt_title || '').toString().slice(0, 150),\n    \"privacy_level\": \"PUBLIC\",\n    \"disable_duet\": false,\n    \"disable_comment\": false,\n    \"disable_stitch\": false\n  },\n  \"source_info\": {\n    \"source\": \"PULL_FROM_URL\",\n    \"video_url\": ($json.tiktok_video_url || $json.merged_video_url)\n  }\n}\n",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "80673119-1403-44e2-8ecf-0ac7c24ffe62",
+      "name": "TikTok: init publish (PULL_FROM_URL)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        4940,
+        200
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "={{$env.N8N_TIKTOK_OAUTH2_CRED_ID}}",
+          "name": "TikTok OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = items[0].json || {};\nconst publishId = r?.data?.publish_id || r?.publish_id || '';\nreturn [{ json: { ...$json, tiktok_publish_id: publishId, tiktok_init_raw: r } }];"
+      },
+      "id": "13df1026-4a8a-4c23-b574-5b27e0749e37",
+      "name": "Code: normalize TikTok publish_id",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5180,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "a02abdca-f4f5-4fe6-a057-5848fcc631d5",
+      "name": "Wait 10s (TikTok)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        5420,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/post/publish/status/fetch/",
+        "authentication": "oAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json; charset=UTF-8"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={ \"publish_id\": $json.tiktok_publish_id }",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "a7bb8a51-72c5-4309-b0f3-c77235f0f1db",
+      "name": "TikTok: fetch publish status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        5660,
+        200
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "={{$env.N8N_TIKTOK_OAUTH2_CRED_ID}}",
+          "name": "TikTok OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = items[0].json || {};\nconst data = resp.data || resp;\n\nconst status = (data.status || data.publish_status || data.state || '').toString().toUpperCase();\nconst shareUrl = data.share_url || data.video_url || data.url || '';\nconst videoId = data.video_id || data.item_id || data.post_id || '';\n\nlet final = 'TIKTOK_PENDING';\nif (['SUCCESS','SUCCEEDED','PUBLISHED','DONE','COMPLETED'].includes(status)) final = 'POSTED_TIKTOK';\nif (['FAILED','FAIL','ERROR','REJECTED'].includes(status)) final = 'TIKTOK_FAILED';\n\nreturn [{\n  json: {\n    ...$json,\n    tiktok_status: final,\n    tiktok_video_id: videoId,\n    tiktok_url: shareUrl,\n    tiktok_status_raw: resp\n  }\n}];\n"
+      },
+      "id": "f07021b9-2161-441e-8665-58e3e58aa98d",
+      "name": "Code: normalize TikTok status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "story_id": "={{ $json.storyId || $json.story_id }}",
+            "tiktok_status": "={{ $json.tiktok_status }}",
+            "tiktok_publish_id": "={{ $json.tiktok_publish_id }}",
+            "tiktok_video_id": "={{ $json.tiktok_video_id }}",
+            "tiktok_url": "={{ $json.tiktok_url }}",
+            "updated_at": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [
+            "story_id"
+          ],
+          "schema": [
+            {
+              "id": "story_id",
+              "displayName": "story_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tiktok_status",
+              "displayName": "tiktok_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tiktok_publish_id",
+              "displayName": "tiktok_publish_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tiktok_video_id",
+              "displayName": "tiktok_video_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tiktok_url",
+              "displayName": "tiktok_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "f1fc60dd-9e7a-4a4a-adff-f73486470836",
+      "name": "GS: Update story \u2192 TikTok status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        6140,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "accept-encoding": "identity",
+            "content-length": "4621",
+            "host": "localhost:5678",
+            "user-agent": "Python-urllib/3.11",
+            "content-type": "application/json",
+            "connection": "close"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "jobId": "f9fb4c6f2fbb4ce29f68bc9094520bd9",
+            "status": "done",
+            "ok": true,
+            "exitCode": 0,
+            "rowId": "10",
+            "storyId": "STORY002",
+            "scene": 3,
+            "stdout": "[23:17:41] \u2705 Download behavior set: /Users/macbookpro/Desktop/Project - Coding/sora-autopilot/sora-ui-autopilot/downloads\n[23:17:41] \ud83d\udcdd Drafts \u2192 get newest tile link (baseline)...\n[23:17:45] \u2705 Found newest draft link: https://sora.chatgpt.com/d/gen_01kf6bdg55e4xrpb557z3csjxx\n[23:17:45] \ud83c\udf10 Opening Sora Explore...\n[23:17:48] \u270d\ufe0f Typing prompt + submitting...\n[23:17:49] \u2705 Submitted prompt\n[23:17:49] \u23f3 Waiting 8s before Drafts polling...\n[23:17:57] \u23f3 Waiting up to 60s for new Drafts item...\n[23:18:00] \u2705 Found newest draft link: https://sora.chatgpt.com/d/gen_01kf6bdg55e4xrpb557z3csjxx\n[23:18:15] \u2705 Found newest draft link: https://sora.chatgpt.com/d/gen_01kf6bdg55e4xrpb557z3csjxx\n[23:18:30] \u2705 Found newest draft link: https://sora.chatgpt.com/d/gen_01kf6bdg55e4xrpb557z3csjxx\n[23:18:44] \u2705 Found newest draft link: https://sora.chatgpt.com/d/gen_01kf6bdg55e4xrpb557z3csjxx\n[23:18:58] \u2705 Found newest draft link: https://sora.chatgpt.com/d/gen_01kf6bdg55e4xrpb557z3csjxx\n[23:19:08] \u23f3 Still no new item; continuing up to 240s total...\n[23:19:22] \u2705 Found newest draft link: https://sora.chatgpt.com/d/gen_01kf6bdg55e4xrpb557z3csjxx\n[23:19:36] \u2705 Found newest draft link: https://sora.chatgpt.com/d/gen_01kf6bdg55e4xrpb557z3csjxx\n[23:19:49] \u2705 Found newest draft link: https://sora.chatgpt.com/d/gen_01kf6bdg55e4xrpb557z3csjxx\n[23:20:03] \u2705 Found newest draft link: https://sora.chatgpt.com/d/gen_01kf6bdg55e4xrpb557z3csjxx\n[23:20:17] \u2705 Found newest draft link: https://sora.chatgpt.com/d/gen_01kf6c2mzmeq6tskr2s00cj8kc\n[23:20:17] \u27a1\ufe0f Going DIRECT to newest link + downloading...\n[23:20:18] \ud83d\udcc1 Downloads before: 9 files\n[23:20:18] \u2b07\ufe0f Download attempt 1/2\n[23:20:39] \u26a0\ufe0f Could not open overflow menu.\n[23:20:40] \u2b07\ufe0f Download attempt 2/2\n[23:20:40] \u2705 Clicked Download in overflow menu\n[23:20:40] \u23f3 Preparing download (expect ~60s, max 90s)...\n[23:20:40] \u2026still preparing (89s left, phase=soft)\n[23:20:45] \u2026still preparing (84s left, phase=soft)\n[23:20:50] \u2026still preparing (79s left, phase=soft)\n[23:20:56] \u2026still preparing (74s left, phase=soft)\n[23:20:59] \u2705 Download already started (file detected).\n[23:20:59] \u231b Waiting for download to START (timeout 25s)...\n[23:20:59] \u2705 Detected .crdownload (download started)\n[23:20:59] \u2b07\ufe0f Waiting at least 5s after starting download...\n[23:21:04] \u2705 No .crdownload files found. Download likely finished.\n[23:21:04] \u2705 Done. elapsed=203.09s started=True finished=True\n[23:21:04] Newest link: https://sora.chatgpt.com/d/gen_01kf6c2mzmeq6tskr2s00cj8kc\n[23:21:04] Downloads: /Users/macbookpro/Desktop/Project - Coding/sora-autopilot/sora-ui-autopilot/downloads\n[23:21:04] downloaded_filename: 20260117_2320_01kf6c2mzmeq6tskr2s00cj8kc.mp4\n[23:21:04] downloaded_path: /Users/macbookpro/Desktop/Project - Coding/sora-autopilot/sora-ui-autopilot/downloads/20260117_2320_01kf6c2mzmeq6tskr2s00cj8kc.mp4\n[23:21:04] Log file: /Users/macbookpro/Desktop/Project - Coding/sora-autopilot/sora-ui-autopilot/logs/sora_10_20260117_231735.txt\n[23:21:04] \u2705 Download finished. Closing browser.\n__RESULT__={\"newest_link\": \"https://sora.chatgpt.com/d/gen_01kf6c2mzmeq6tskr2s00cj8kc\", \"downloaded_path\": \"/Users/macbookpro/Desktop/Project - Coding/sora-autopilot/sora-ui-autopilot/downloads/20260117_2320_01kf6c2mzmeq6tskr2s00cj8kc.mp4\", \"downloaded_filename\": \"20260117_2320_01kf6c2mzmeq6tskr2s00cj8kc.mp4\", \"log_file\": \"/Users/macbookpro/Desktop/Project - Coding/sora-autopilot/sora-ui-autopilot/logs/sora_10_20260117_231735.txt\", \"download_dir\": \"/Users/macbookpro/Desktop/Project - Coding/sora-autopilot/sora-ui-autopilot/downloads\", \"started\": true, \"finished\": true}\n",
+            "stderr": "",
+            "result": {
+              "newest_link": "https://sora.chatgpt.com/d/gen_01kf6c2mzmeq6tskr2s00cj8kc",
+              "downloaded_path": "/Users/macbookpro/Desktop/Project - Coding/sora-autopilot/sora-ui-autopilot/downloads/20260117_2320_01kf6c2mzmeq6tskr2s00cj8kc.mp4",
+              "downloaded_filename": "20260117_2320_01kf6c2mzmeq6tskr2s00cj8kc.mp4",
+              "log_file": "/Users/macbookpro/Desktop/Project - Coding/sora-autopilot/sora-ui-autopilot/logs/sora_10_20260117_231735.txt",
+              "download_dir": "/Users/macbookpro/Desktop/Project - Coding/sora-autopilot/sora-ui-autopilot/downloads",
+              "started": true,
+              "finished": true
+            }
+          },
+          "webhookUrl": "http://localhost:5678/webhook/sora_done",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Set RUNNING fields": {
+      "main": [
+        [
+          {
+            "node": "GS: Update row \u2192 RUNNING",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        []
+      ]
+    },
+    "GS: Update row \u2192 RUNNING": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking \u2018Execute workflow\u2019": {
+      "main": [
+        [
+          {
+            "node": "GS: Get 1 NEW row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Get 1 NEW row": {
+      "main": [
+        [
+          {
+            "node": "IF: found row?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: found row?": {
+      "main": [
+        [
+          {
+            "node": "Set RUNNING fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse stdout \u2192 local_path": {
+      "main": [
+        [
+          {
+            "node": "Set DONE fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set DONE fields": {
+      "main": [
+        [
+          {
+            "node": "GS: Update row \u2192 DONE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Update row \u2192 DONE": {
+      "main": [
+        [
+          {
+            "node": "GS: Get DONE clips (same story_id)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Get DONE clips (same story_id)": {
+      "main": [
+        [
+          {
+            "node": "Code: Check 6 clips + sort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Check 6 clips + sort": {
+      "main": [
+        [
+          {
+            "node": "IF: have 6 clips?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: have 6 clips?": {
+      "main": [
+        [
+          {
+            "node": "Code: Extract downloaded file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Code: Extract downloaded file": {
+      "main": [
+        [
+          {
+            "node": "HTTP: Media pipeline (merge/captions/music)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: Media pipeline (merge/captions/music)": {
+      "main": [
+        []
+      ]
+    },
+    "IF: merged done?": {
+      "main": [
+        [
+          {
+            "node": "Code: Map DONE fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code: Map WAIT fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Map DONE fields": {
+      "main": [
+        [
+          {
+            "node": "GS: Mark story MERGED_DONE1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Map WAIT fields": {
+      "main": [
+        [
+          {
+            "node": "GS: Mark CLIP_SAVED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse stdout \u2192 local_path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "IF: merged done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "GS: Get 1 NEW row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Mark story MERGED_DONE1": {
+      "main": [
+        [
+          {
+            "node": "Set: YouTube metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: YouTube metadata": {
+      "main": [
+        [
+          {
+            "node": "HTTP: YouTube init (resumable)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: YouTube init (resumable)": {
+      "main": [
+        [
+          {
+            "node": "Read Binary (merged video)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Binary (merged video)": {
+      "main": [
+        [
+          {
+            "node": "HTTP: YouTube upload (PUT video)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP: YouTube upload (PUT video)": {
+      "main": [
+        [
+          {
+            "node": "Set: YouTube sheet fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: YouTube sheet fields": {
+      "main": [
+        [
+          {
+            "node": "GS: Update story \u2192 POSTED_YOUTUBE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GS: Update story \u2192 POSTED_YOUTUBE": {
+      "main": [
+        [
+          {
+            "node": "IF: has TikTok public URL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: has TikTok public URL?": {
+      "main": [
+        [
+          {
+            "node": "TikTok: init publish (PULL_FROM_URL)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "TikTok: init publish (PULL_FROM_URL)": {
+      "main": [
+        [
+          {
+            "node": "Code: normalize TikTok publish_id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: normalize TikTok publish_id": {
+      "main": [
+        [
+          {
+            "node": "Wait 10s (TikTok)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 10s (TikTok)": {
+      "main": [
+        [
+          {
+            "node": "TikTok: fetch publish status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok: fetch publish status": {
+      "main": [
+        [
+          {
+            "node": "Code: normalize TikTok status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: normalize TikTok status": {
+      "main": [
+        [
+          {
+            "node": "GS: Update story \u2192 TikTok status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "6bef00ef-90a3-4e95-90ca-8621bd1004b4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2e78e97d6f5b5e8061557c1db1f20af2bddbc05d1749f4269ef93ce4568fde3a"
+  },
+  "id": "If-z3UXzHueJV-uHIRqI6",
+  "tags": []
+}

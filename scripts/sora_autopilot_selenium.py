@@ -118,6 +118,7 @@ def save_debug(driver, logger: RunLogger, name: str):
 # -----------------------
 def build_driver(logger: RunLogger):
     os.makedirs(PROFILE_DIR, exist_ok=True)
+    _cleanup_profile_locks(PROFILE_DIR, logger)
 
     options = uc.ChromeOptions()
     options.headless = False
@@ -141,7 +142,13 @@ def build_driver(logger: RunLogger):
     }
     options.add_experimental_option("prefs", prefs)
 
-    driver = uc.Chrome(options=options, user_data_dir=PROFILE_DIR, version_main=144)
+    driver = uc.Chrome(
+        options=options,
+        user_data_dir=PROFILE_DIR,
+        version_main=144,
+        use_subprocess=False,
+        driver_executable_path=None,
+    )
 
     try:
         driver.execute_cdp_cmd("Page.setDownloadBehavior", {"behavior": "allow", "downloadPath": DOWNLOAD_DIR})
@@ -157,6 +164,57 @@ def build_driver(logger: RunLogger):
         pass
 
     return driver
+
+
+def _cleanup_profile_locks(profile_path: str, logger: RunLogger) -> None:
+    """Remove stale Chrome profile lock files; abort if a live Chrome is using this profile."""
+    lock_names = ("SingletonLock", "SingletonSocket", "SingletonCookie")
+    lock_path = os.path.join(profile_path, "SingletonLock")
+    try:
+        if os.path.exists(lock_path):
+            pid = _parse_chrome_lock_pid(lock_path)
+            if pid and _pid_alive(pid):
+                raise RuntimeError(
+                    f"Chrome appears to be running for this profile (pid {pid}). "
+                    "Close Chrome or use a different profile."
+                )
+    except Exception as e:
+        logger.log(f"❌ Profile lock check failed: {e}")
+        raise
+
+    for name in lock_names:
+        path = os.path.join(profile_path, name)
+        if os.path.exists(path) or os.path.islink(path):
+            try:
+                os.unlink(path)
+                logger.log(f"🧹 Removed stale profile lock: {path}")
+            except Exception as e:
+                logger.log(f"⚠️ Could not remove lock {path}: {e}")
+
+
+def _parse_chrome_lock_pid(lock_path: str) -> int | None:
+    try:
+        target = os.readlink(lock_path)
+    except OSError:
+        return None
+    # Typical format: "<hostname>-<pid>"
+    if "-" not in target:
+        return None
+    try:
+        return int(target.rsplit("-", 1)[-1])
+    except ValueError:
+        return None
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # If we can't signal it, assume it's alive to be safe.
+        return True
+    return True
 
 
 def wait_body(driver, timeout=60):

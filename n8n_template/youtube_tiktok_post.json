@@ -1,0 +1,606 @@
+{
+  "name": "YouTube Upload - Merge Fix (Working)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "media_done",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c96ff539-b48c-458b-91d5-76bcd326544e",
+      "name": "Webhook: Media Done",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        2816,
+        2688
+      ],
+      "webhookId": "webhook-media-done"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition-merged-done",
+              "leftValue": "={{ $json.body.result.merged_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cf6fae5b-daec-44b6-844f-8566b22db031",
+      "name": "IF: Merged Done?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3040,
+        2688
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and normalize webhook data\nconst body = $json.body || {};\nconst result = body.result || {};\nconst metadata = body.metadata || {};\n\n// Normalize paths\nconst videoPath = result.output_video || '';\nconst srtPath = result.output_srt || '';\nconst storyId = body.storyId || body.story_id || 'UNKNOWN';\n\n// YouTube metadata with defaults\nconst title = metadata.title || `${storyId} - AI Generated Video`;\nconst description = metadata.description || `Automatically generated video for ${storyId}`;\nconst tags = metadata.tags || ['AI', 'automation'];\nconst categoryId = String(metadata.categoryId || '22');\nconst privacyStatus = metadata.privacyStatus || 'public';\n\n// Build YouTube snippet\nconst snippet = {\n  title: title,\n  description: description,\n  tags: tags,\n  categoryId: categoryId\n};\n\nconst status = {\n  privacyStatus: privacyStatus,\n  selfDeclaredMadeForKids: false\n};\n\nreturn [{\n  // Original data\n  ...body,\n  \n  // Normalized fields\n  story_id: storyId,\n  video_path: videoPath,\n  srt_path: srtPath,\n  video_url: videoPath,\n  \n  // YouTube metadata as object\n  youtube_snippet: snippet,\n  youtube_status: status,\n  \n  // Individual fields for reference\n  yt_title: title,\n  yt_description: description,\n  yt_tags: tags,\n  yt_category_id: categoryId,\n  yt_privacy_status: privacyStatus,\n  \n  // Status tracking\n  status: 'PROCESSING',\n  merged_done: true,\n  timestamp: new Date().toISOString()\n}];"
+      },
+      "id": "bd0a4916-f6c7-482b-810e-091fdcaa71d7",
+      "name": "Code: Normalize Webhook Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3264,
+        2592
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Workflow started\", \"storyId\": $json.story_id } }}",
+        "options": {}
+      },
+      "id": "231e21bf-63ac-48e0-810a-9ae5bff29408",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        3264,
+        2784
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true
+          },
+          "conditions": [
+            {
+              "id": "condition-video-exists",
+              "leftValue": "={{ $json.video_path }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cff24c2a-1bb6-4b2c-a34f-de9e4d537a18",
+      "name": "IF: Has Video Path?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3488,
+        2592
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// After the Merge node, this item contains:\n// - headers.location from \"YouTube: Init Upload\"\n// - binary.data from \"Read Video File\"\n\n// 1) Upload URL from headers\nconst headers = $json.headers || $json.responseHeaders || {};\nconst uploadUrl = headers.location || headers.Location || headers.LOCATION || '';\n\nif (!uploadUrl) {\n  console.log('Current item json:', JSON.stringify($json, null, 2));\n  throw new Error('Missing resumable upload URL (headers.location).');\n}\n\n// 2) Binary video data\nif (!$binary || !$binary.data) {\n  console.log('Incoming binary keys:', $binary ? Object.keys($binary) : null);\n  throw new Error('Missing binary.data (video). Check Merge wiring.');\n}\n\n// 3) Get normalized/original metadata safely\nconst originalData = $items('Code: Normalize Webhook Data')[0]?.json || {};\n\n// 4) Output combined payload\nreturn [{\n  json: {\n    ...originalData,\n    upload_url: uploadUrl,\n    yt_upload_url: uploadUrl,\n  },\n  binary: $binary,\n}];\n"
+      },
+      "id": "80808468-46ec-4fdf-b3fc-c60cff45a92c",
+      "name": "Code: Combine Binary + URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3920,
+        2592
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $json.upload_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "video/*"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 300000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api"
+      },
+      "id": "8947ca61-23ce-4057-9b2b-f62d1300e23e",
+      "name": "YouTube: Upload Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4144,
+        2592
+      ],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "uduOT9spgMj6WqrN",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n HTTP Request often wraps the real response inside `body`\nconst raw = $json || {};\nconst body = raw.body || raw; // fallback if node is not in \"full response\" mode\n\nconst videoId = body.id || '';\nconst snippet = body.snippet || {};\nconst ytStatus = body.status || {};\n\nif (!videoId) {\n  console.error('RAW:', JSON.stringify(raw, null, 2));\n  console.error('BODY:', JSON.stringify(body, null, 2));\n  throw new Error('YouTube upload did not return video ID (expected body.id).');\n}\n\nconst videoUrl = `https://www.youtube.com/watch?v=${videoId}`;\nconst embedUrl = `https://www.youtube.com/embed/${videoId}`;\nconst studioUrl = `https://studio.youtube.com/video/${videoId}/edit`;\n\n// Pull normalized metadata reliably (don\u2019t rely on $node when multiple items)\nconst originalData = $items(\"Code: Normalize Webhook Data\")[0]?.json || {};\n\nreturn [\n  {\n    json: {\n      ...originalData,\n\n      // YouTube results\n      yt_video_id: videoId,\n      yt_video_url: videoUrl,\n      yt_embed_url: embedUrl,\n      yt_studio_url: studioUrl,\n      yt_title: snippet.title || originalData.yt_title,\n      yt_published_at: snippet.publishedAt || new Date().toISOString(),\n      yt_privacy_status: ytStatus.privacyStatus || originalData.yt_privacy_status,\n      yt_upload_status: ytStatus.uploadStatus || 'uploaded',\n\n      // Status\n      status: 'POSTED_YOUTUBE',\n      posted_at: new Date().toISOString(),\n    },\n  },\n];\n"
+      },
+      "id": "69e5679f-dc7c-466c-8961-5cb041ca7ef0",
+      "name": "Code: Extract YouTube Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4368,
+        2592
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1360620109,
+          "mode": "list",
+          "cachedResultName": "output",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1lrq-aIjDe7j_mW1OVhJgQwziMcI_FpQGIMPQSJJcvoY/edit#gid=1360620109"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "story_id": "={{ $json.story_id }}",
+            "status": "={{ $json.status }}",
+            "updated_at": "={{ new Date().toISOString() }}",
+            "row_number": 0,
+            "youtube_url": "={{ $json.yt_video_url }}",
+            "youtube_status": "={{ $json.yt_upload_status }}"
+          },
+          "matchingColumns": [
+            "story_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "story_id",
+              "displayName": "story_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "merged_video_path",
+              "displayName": "merged_video_path",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "gdrive_file_id",
+              "displayName": "gdrive_file_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "youtube_status",
+              "displayName": "youtube_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "youtube_video_id",
+              "displayName": "youtube_video_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "youtube_url",
+              "displayName": "youtube_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "updated_at",
+              "displayName": "updated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "f596a801-3d31-43be-a4db-e5050ab75e5d",
+      "name": "Google Sheets: Update YouTube Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        4576,
+        2592
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "T252mm8CpywEJmNW",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Return success response\nreturn [{\n  success: true,\n  message: 'Video posted to YouTube successfully',\n  story_id: $json.story_id,\n  yt_video_id: $json.yt_video_id,\n  yt_video_url: $json.yt_video_url,\n  yt_studio_url: $json.yt_studio_url,\n  status: $json.status\n}];"
+      },
+      "id": "1ce44250-4f25-4ba3-a38f-18cc6cc53722",
+      "name": "Code: Final Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4800,
+        2592
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle missing video path\nconst storyId = $json.story_id || 'unknown';\n\nreturn [{\n  success: false,\n  error: 'Video path not provided',\n  story_id: storyId,\n  status: 'ERROR_NO_VIDEO'\n}];"
+      },
+      "id": "0c468e35-3763-4096-ad0b-f568774503d6",
+      "name": "Code: Error - No Video",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3696,
+        2864
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json; charset=UTF-8"
+            },
+            {
+              "name": "X-Upload-Content-Type",
+              "value": "video/*"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { snippet: $json.youtube_snippet, status: $json.youtube_status } }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "c32bc420-7cec-435b-90e9-a2ecda7e86c2",
+      "name": "YouTube: Init Upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3696,
+        2672
+      ],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "uduOT9spgMj6WqrN",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "filePath": "={{ $json.video_path }}"
+      },
+      "id": "452504d6-4b85-44aa-b3d6-f438bafcf673",
+      "name": "Read Video File",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        3696,
+        2480
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "position"
+      },
+      "id": "merge-init-video-001",
+      "name": "Merge: Init + Video",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1450,
+        200
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook: Media Done": {
+      "main": [
+        [
+          {
+            "node": "IF: Merged Done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Merged Done?": {
+      "main": [
+        [
+          {
+            "node": "Code: Normalize Webhook Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Normalize Webhook Data": {
+      "main": [
+        [
+          {
+            "node": "IF: Has Video Path?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Has Video Path?": {
+      "main": [
+        [
+          {
+            "node": "YouTube: Init Upload",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Video File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code: Error - No Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Combine Binary + URL": {
+      "main": [
+        [
+          {
+            "node": "YouTube: Upload Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube: Upload Video": {
+      "main": [
+        [
+          {
+            "node": "Code: Extract YouTube Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Extract YouTube Result": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets: Update YouTube Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets: Update YouTube Status": {
+      "main": [
+        [
+          {
+            "node": "Code: Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube: Init Upload": {
+      "main": [
+        [
+          {
+            "node": "Merge: Init + Video",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Read Video File": {
+      "main": [
+        [
+          {
+            "node": "Merge: Init + Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge: Init + Video": {
+      "main": [
+        [
+          {
+            "node": "Code: Combine Binary + URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "timeSavedPerExecution": 10
+  },
+  "versionId": "youtube-upload-merge-working-v2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2e78e97d6f5b5e8061557c1db1f20af2bddbc05d1749f4269ef93ce4568fde3a"
+  },
+  "id": "If-z3UXzHueJV-uHIRqI6",
+  "tags": [
+    {
+      "updatedAt": "2026-01-28T18:59:06.674Z",
+      "createdAt": "2026-01-28T18:59:06.674Z",
+      "id": "0QVcGuBFroahS6Yz",
+      "name": "Production"
+    },
+    {
+      "updatedAt": "2026-01-28T18:59:06.677Z",
+      "createdAt": "2026-01-28T18:59:06.677Z",
+      "id": "pRrSBaWfHa18BIGb",
+      "name": "Automation"
+    }
+  ]
+}
