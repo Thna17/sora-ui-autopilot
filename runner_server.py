@@ -32,9 +32,15 @@ MEDIA_SCRIPT = os.environ.get(
     os.path.join(BASE_DIR, "scripts", "media_pipeline.py")
 )
 
+YOUTUBE_SCRIPT = os.environ.get(
+    "YOUTUBE_SCRIPT",
+    os.path.join(BASE_DIR, "scripts", "youtube_upload_autopilot.py")
+)
+
 # --- In-memory job stores ---
 JOBS: Dict[str, Dict[str, Any]] = {}        # for /run_async
 MEDIA_JOBS: Dict[str, Dict[str, Any]] = {}  # for /process
+YOUTUBE_JOBS: Dict[str, Dict[str, Any]] = {}  # for /upload_youtube
 
 
 # -----------------------
@@ -374,6 +380,143 @@ def routes():
         methods = ','.join(sorted(r.methods or []))
         result.append(f"{r.path} [{methods}]")
     return sorted(result)
+
+
+# ============================================================
+# 4) YOUTUBE UPLOAD route: /upload_youtube
+# ============================================================
+class YouTubeJob(BaseModel):
+    videoPath: str
+    title: str
+    description: str
+    storyId: str
+    visibility: Optional[str] = "public"  # public, unlisted, or private
+    chromeProfile: Optional[str] = None
+    webhookUrl: Optional[str] = None
+
+
+def run_youtube_background(job_id: str, job: YouTubeJob):
+    try:
+        video_path = job.videoPath.strip()
+        title = job.title.strip()
+        description = job.description.strip()
+        story_id = job.storyId.strip()
+        visibility = (job.visibility or "public").strip().lower()
+        chrome_profile = (job.chromeProfile or "").strip()
+
+        YOUTUBE_JOBS[job_id]["status"] = "running"
+        YOUTUBE_JOBS[job_id]["started_at"] = time.time()
+
+        env = os.environ.copy()
+        if chrome_profile:
+            # Resolve profile path. If it's a name, verify existence in PROFILES_ROOT.
+            profiles_root_Runtime = globals().get("PROFILES_ROOT", os.path.join(BASE_DIR, "chrome_profiles"))
+            
+            # Check if direct path or name
+            if os.path.isabs(chrome_profile) and os.path.isdir(chrome_profile):
+                env["YT_CHROME_PROFILE"] = chrome_profile
+            else:
+                candidate = os.path.join(profiles_root_Runtime, chrome_profile)
+                if os.path.isdir(candidate):
+                    env["YT_CHROME_PROFILE"] = candidate
+                else:
+                    print(f"[WARN] Chrome profile '{chrome_profile}' not found in {profiles_root_Runtime}. Using default.", flush=True)
+
+        cmd = [PYTHON, YOUTUBE_SCRIPT, video_path, title, description, story_id, visibility]
+        print(f"[YouTube Job {job_id}] Running: {' '.join(cmd[:2])} ... (visibility: {visibility})", flush=True)
+        proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
+
+        out = proc.stdout or ""
+        err = proc.stderr or ""
+        parsed = parse_marker(out)
+
+        result = {
+            "ok": proc.returncode == 0,
+            "exitCode": proc.returncode,
+            "jobId": job_id,
+            "storyId": story_id,
+            "videoPath": video_path,
+            "title": title,
+            "stdout": out[-8000:],
+            "stderr": err[-8000:],
+            "result": parsed or {},
+        }
+
+        YOUTUBE_JOBS[job_id]["status"] = "done" if result["ok"] else "error"
+        YOUTUBE_JOBS[job_id]["finished_at"] = time.time()
+        YOUTUBE_JOBS[job_id]["result"] = result
+
+        # Webhook callback
+        finished = bool(result.get("result", {}).get("finished"))
+        if job.webhookUrl and result["ok"] and finished:
+            callback_payload = {"jobId": job_id, "status": YOUTUBE_JOBS[job_id]["status"], **result}
+            post_webhook(job.webhookUrl, callback_payload, job_id=job_id, store=YOUTUBE_JOBS)
+    
+    except Exception as e:
+        import traceback
+        error_msg = f"YouTube Job {job_id} crashed: {e}\n{traceback.format_exc()}"
+        print(f"[ERROR] {error_msg}", flush=True)
+        YOUTUBE_JOBS[job_id]["status"] = "error"
+        YOUTUBE_JOBS[job_id]["finished_at"] = time.time()
+        YOUTUBE_JOBS[job_id]["result"] = {
+            "ok": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+
+
+@app.post("/upload_youtube")
+def upload_youtube(job: YouTubeJob):
+    video_path = (job.videoPath or "").strip()
+    title = (job.title or "").strip()
+    description = (job.description or "").strip()
+    story_id = (job.storyId or "").strip()
+
+    if not video_path:
+        return {"ok": False, "error": "videoPath is empty"}
+    if not os.path.exists(video_path):
+        return {"ok": False, "error": f"Video file not found: {video_path}"}
+    if not title:
+        return {"ok": False, "error": "title is empty"}
+    if not story_id:
+        return {"ok": False, "error": "storyId is empty"}
+
+    job_id = uuid.uuid4().hex
+
+    YOUTUBE_JOBS[job_id] = {
+        "status": "queued",
+        "job": job.model_dump(),
+        "created_at": time.time(),
+        "result": None,
+    }
+
+    threading.Thread(target=run_youtube_background, args=(job_id, job), daemon=True).start()
+
+    return {
+        "ok": True,
+        "jobId": job_id,
+        "status": "queued",
+        "storyId": story_id,
+        "videoPath": video_path,
+        "message": "YouTube upload job accepted. Will callback webhookUrl when finished=true.",
+    }
+
+
+@app.get("/upload_youtube_status/{job_id}")
+def upload_youtube_status(job_id: str):
+    j = YOUTUBE_JOBS.get(job_id)
+    if not j:
+        return {"ok": False, "error": "job not found", "jobId": job_id}
+    return {
+        "ok": True,
+        "jobId": job_id,
+        "status": j["status"],
+        "created_at": j.get("created_at"),
+        "started_at": j.get("started_at"),
+        "finished_at": j.get("finished_at"),
+        "result": j.get("result"),
+    }
+
 
 
 # ============================================================

@@ -1,0 +1,256 @@
+{
+    "name": "AI Video Generation to YouTube Upload",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "generate_video",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "name": "Webhook: Trigger Video Generation",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ],
+            "webhookId": "generate-video-webhook"
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "video_done",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "name": "Webhook: Video Generation Done",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                250,
+                500
+            ],
+            "webhookId": "video-done-webhook"
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "youtube_done",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "name": "Webhook: YouTube Upload Done",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                850,
+                500
+            ],
+            "webhookId": "youtube-done-webhook"
+        },
+        {
+            "parameters": {
+                "requestMethod": "POST",
+                "url": "http://localhost:4000/run_async",
+                "jsonParameters": true,
+                "options": {
+                    "timeout": 600000
+                },
+                "bodyParametersJson": "={\n  \"prompt\": \"{{ $json.prompt }}\",\n  \"storyId\": \"{{ $json.storyId }}\",\n  \"scene\": {{ $json.scene }},\n  \"rowId\": \"{{ $json.rowId }}\",\n  \"chromeProfile\": \"{{ $json.chromeProfile || 'veo_profile' }}\",\n  \"webhookUrl\": \"http://localhost:5678/webhook/video_done\"\n}"
+            },
+            "name": "Generate Video (Sora/Veo)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 1,
+            "position": [
+                450,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "requestMethod": "POST",
+                "url": "http://localhost:4000/upload_youtube",
+                "jsonParameters": true,
+                "options": {
+                    "timeout": 600000
+                },
+                "bodyParametersJson": "={\n  \"videoPath\": \"{{ $json.result.outputPath }}\",\n  \"title\": \"{{ $json.title || 'AI Generated Video - ' + $json.storyId }}\",\n  \"description\": \"{{ $json.description || 'This video was generated using AI.\\n\\nCreated with Sora/Veo AI' }}\",\n  \"storyId\": \"{{ $json.storyId }}\",\n  \"chromeProfile\": \"{{ $json.youtubeProfile || 'youtube_main' }}\",\n  \"webhookUrl\": \"http://localhost:5678/webhook/youtube_done\"\n}"
+            },
+            "name": "Upload to YouTube",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 1,
+            "position": [
+                650,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ { \"ok\": true, \"jobId\": $json.jobId, \"message\": \"Video generation started\" } }}"
+            },
+            "name": "Response: Generation Started",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                650,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ { \"ok\": true, \"message\": \"Video generation complete, uploading to YouTube...\" } }}"
+            },
+            "name": "Response: Uploading",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                850,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ { \"ok\": true, \"message\": \"Upload to YouTube complete!\", \"result\": $json } }}"
+            },
+            "name": "Response: Complete",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1050,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "channel": "#ai-videos",
+                "text": "=🎬 Video Generation Complete!\n\n✅ Story: {{ $json.storyId }}\n📝 Scene: {{ $json.scene }}\n📁 Path: {{ $json.result.outputPath }}\n⏱️ Duration: {{ Math.round(($json.finished_at - $json.started_at) / 60) }} minutes\n\nStarting YouTube upload...",
+                "otherOptions": {}
+            },
+            "name": "Notify: Video Generated",
+            "type": "n8n-nodes-base.slack",
+            "typeVersion": 1,
+            "position": [
+                650,
+                600
+            ],
+            "credentials": {
+                "slackApi": {
+                    "id": "1",
+                    "name": "Slack account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "channel": "#ai-videos",
+                "text": "=🚀 YouTube Upload Complete!\n\n✅ Story: {{ $json.storyId }}\n📺 Title: {{ $json.title }}\n⏱️ Upload Time: {{ Math.round(($json.finished_at - $json.started_at) / 60) }} minutes\n\n🎉 Video is now live on YouTube!",
+                "otherOptions": {}
+            },
+            "name": "Notify: Upload Complete",
+            "type": "n8n-nodes-base.slack",
+            "typeVersion": 1,
+            "position": [
+                1050,
+                600
+            ],
+            "credentials": {
+                "slackApi": {
+                    "id": "1",
+                    "name": "Slack account"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Webhook: Trigger Video Generation": {
+            "main": [
+                [
+                    {
+                        "node": "Generate Video (Sora/Veo)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Generate Video (Sora/Veo)": {
+            "main": [
+                [
+                    {
+                        "node": "Response: Generation Started",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook: Video Generation Done": {
+            "main": [
+                [
+                    {
+                        "node": "Upload to YouTube",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Notify: Video Generated",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Upload to YouTube": {
+            "main": [
+                [
+                    {
+                        "node": "Response: Uploading",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook: YouTube Upload Done": {
+            "main": [
+                [
+                    {
+                        "node": "Response: Complete",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Notify: Upload Complete",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "staticData": null,
+    "tags": [
+        {
+            "name": "AI Video",
+            "id": "1"
+        },
+        {
+            "name": "YouTube",
+            "id": "2"
+        },
+        {
+            "name": "Automation",
+            "id": "3"
+        }
+    ],
+    "meta": {
+        "templateCredsSetupCompleted": true
+    }
+}
