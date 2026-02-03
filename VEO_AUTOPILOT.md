@@ -65,6 +65,10 @@ curl -X POST http://localhost:8000/run_async \
 # Basic usage
 python scripts/veo_autopilot.py "prompt text" "STORY002_scene_001" "STORY002" 1
 
+# Frames to Video (two images)
+python scripts/veo_autopilot.py "prompt text" "STORY002_scene_001" "STORY002" 1 \
+  "/path/to/frame_1.png" "/path/to/frame_2.png"
+
 # With custom project URL
 VEO_PROJECT_URL="https://labs.google/fx/tools/flow/project/YOUR_PROJECT_ID" \
 python scripts/veo_autopilot.py "prompt text" "STORY002_scene_001" "STORY002" 1

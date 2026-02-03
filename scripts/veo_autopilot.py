@@ -32,7 +32,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 # ==============================
 
 # Default project URL if not provided via environment
-DEFAULT_PROJECT_URL = "https://labs.google/fx/tools/flow/project/bf658531-43d0-4040-83e7-7f3a3f1847f5"
+DEFAULT_PROJECT_URL = "https://labs.google/fx/tools/flow/project/011a52ba-ea0b-4d14-84b4-e7b7e8b4e544"
 
 # Wait times (configurable via env)
 WAIT_AFTER_SUBMIT_SECONDS = int(os.environ.get("VEO_WAIT_SECONDS", "90"))
@@ -418,6 +418,596 @@ def navigate_to_project(driver, logger: RunLogger, project_url: str | None):
     logger.log("✅ Project page loaded")
 
 
+def select_generation_mode(driver, logger: RunLogger, mode_label: str) -> None:
+    """Select generation mode (e.g. 'Frames to Video') from the mode dropdown."""
+    logger.log(f"🎛️ Selecting mode: {mode_label}")
+
+    def open_menu():
+        # First, try to open the dropdown by clicking the current mode pill/button
+        trigger_selectors = [
+            (By.XPATH, "//*[@aria-haspopup='menu' and (contains(., 'Text to Video') or contains(., 'Frames to Video') or contains(., 'Ingredients to Video') or contains(., 'Create Image'))]"),
+            (By.XPATH, "//*[self::button or @role='button'][contains(., 'Text to Video') or contains(., 'Frames to Video') or contains(., 'Ingredients to Video') or contains(., 'Create Image')]"),
+            (By.XPATH, "//*[contains(@aria-label, 'Text to Video') or contains(@aria-label, 'Frames to Video') or contains(@aria-label, 'Ingredients to Video') or contains(@aria-label, 'Create Image')]"),
+        ]
+
+        trigger = None
+        for by, sel in trigger_selectors:
+            try:
+                candidates = driver.find_elements(by, sel)
+                for el in candidates:
+                    if not (el.is_displayed() and el.is_enabled()):
+                        continue
+                    tag = (el.tag_name or "").lower()
+                    if tag in ("html", "body"):
+                        continue
+                    trigger = el
+                    break
+                if trigger:
+                    break
+            except Exception:
+                continue
+
+        if not trigger:
+            # Fallback: scan for any visible element that contains "Text to Video"
+            try:
+                candidates = driver.find_elements(By.XPATH, "//*[contains(., 'Text to Video') or contains(., 'Frames to Video')]")
+                for el in candidates:
+                    if not (el.is_displayed() and el.is_enabled()):
+                        continue
+                    tag = (el.tag_name or "").lower()
+                    if tag in ("html", "body"):
+                        continue
+                    trigger = el
+                    break
+            except Exception:
+                pass
+
+        if not trigger:
+            raise RuntimeError("Could not find generation mode dropdown trigger")
+
+        hard_click(driver, trigger, logger)
+        time.sleep(0.8)
+
+    # First, try to open the dropdown by clicking the current mode pill/button
+    open_menu()
+
+    # Now select the mode from dropdown via JS (avoid broad matches like <html>)
+    clicked = _click_menu_item_by_text(driver, mode_label)
+    if not clicked:
+        raise RuntimeError(f"Could not select mode: {mode_label}")
+
+    time.sleep(0.8)
+
+    # Verify active mode label (must be on the trigger, not hidden)
+    active = _active_mode_label(driver)
+    if mode_label.lower() not in (active or "").lower():
+        logger.log(f"⚠️ Active mode '{active}' does not match '{mode_label}'. Retrying once...")
+        open_menu()
+        if not _click_menu_item_by_text(driver, mode_label):
+            raise RuntimeError(f"Could not click mode item: {mode_label}")
+        time.sleep(0.8)
+        active = _active_mode_label(driver)
+
+    if mode_label.lower() not in (active or "").lower():
+        raise RuntimeError(f"Mode selection did not apply: {mode_label}")
+
+    logger.log(f"✅ Mode selected: {mode_label}")
+
+
+def ensure_frames_mode(driver, logger: RunLogger, attempts: int = 3) -> None:
+    """Ensure Frames to Video mode is active by checking placeholder/UI."""
+    for attempt in range(1, attempts + 1):
+        try:
+            select_generation_mode(driver, logger, "Frames to Video")
+        except Exception as e:
+            logger.log(f"⚠️ Mode selection failed (attempt {attempt}/{attempts}): {e}")
+        if _frames_ui_ready(driver):
+            logger.log("✅ Frames UI detected")
+            return
+        logger.log(f"⚠️ Frames UI not detected (attempt {attempt}/{attempts})")
+        time.sleep(1)
+    raise RuntimeError("Frames to Video mode did not activate")
+
+
+def _click_menu_item_by_text(driver, label: str) -> bool:
+    try:
+        return bool(
+            driver.execute_script(
+                """
+                const label = arguments[0].toLowerCase();
+                const isVisible = (el) => {
+                  if (!el) return false;
+                  const rect = el.getBoundingClientRect();
+                  if (rect.width <= 0 || rect.height <= 0) return false;
+                  const style = window.getComputedStyle(el);
+                  if (style.visibility === 'hidden' || style.display === 'none') return false;
+                  return true;
+                };
+
+                const menuRoots = Array.from(document.querySelectorAll('[role="menu"], [data-radix-menu-content], [data-state="open"]'));
+                const scopeNodes = menuRoots.length ? menuRoots : [document];
+                const selector = 'button, [role="menuitem"], [role="menuitemradio"], [role="button"], [data-radix-collection-item]';
+
+                for (const scope of scopeNodes) {
+                  const items = Array.from(scope.querySelectorAll(selector));
+                  for (const item of items) {
+                    if (!isVisible(item)) continue;
+                    const tag = (item.tagName || '').toLowerCase();
+                    if (tag === 'html' || tag === 'body') continue;
+                    const text = ((item.innerText || '') + ' ' + (item.getAttribute('aria-label') || '')).toLowerCase().trim();
+                    if (!text) continue;
+                    if (text.includes(label)) {
+                      item.click();
+                      return true;
+                    }
+                  }
+                }
+                return false;
+                """,
+                label,
+            )
+        )
+    except Exception:
+        return False
+
+
+def _active_mode_label(driver) -> str:
+    try:
+        return driver.execute_script(
+            """
+            const isVisible = (el) => {
+              if (!el) return false;
+              const rect = el.getBoundingClientRect();
+              if (rect.width <= 0 || rect.height <= 0) return false;
+              const style = window.getComputedStyle(el);
+              if (style.visibility === 'hidden' || style.display === 'none') return false;
+              return true;
+            };
+            const getText = (el) => ((el.innerText || '') + ' ' + (el.getAttribute('aria-label') || '')).trim();
+            const isModeText = (text) => (
+              text.includes('Text to Video') ||
+              text.includes('Frames to Video') ||
+              text.includes('Ingredients to Video') ||
+              text.includes('Create Image')
+            );
+            const isInMenu = (el) => {
+              if (!el || !el.closest) return false;
+              return !!el.closest('[role="menu"], [data-radix-menu-content], [data-radix-menu-portal]');
+            };
+
+            // Prefer the combobox trigger (mode selector)
+            const combo = document.querySelector('[role="combobox"]');
+            if (combo && isVisible(combo)) {
+              const text = getText(combo);
+              if (text && isModeText(text)) return text;
+            }
+
+            // Fallback: scan visible buttons not inside menus
+            const candidates = Array.from(document.querySelectorAll('button, [role="button"]'));
+            for (const el of candidates) {
+              if (isInMenu(el)) continue;
+              if (!isVisible(el)) continue;
+              const text = getText(el);
+              if (!text) continue;
+              if (isModeText(text)) return text;
+            }
+            return '';
+            """
+        )
+    except Exception:
+        return ""
+
+
+def upload_frame_images(driver, logger: RunLogger, frame_1: str, frame_2: str) -> None:
+    """Upload two frame images for Frames to Video mode."""
+    if not frame_1 or not frame_2:
+        raise RuntimeError("Both frame_1 and frame_2 are required for Frames to Video")
+    if not os.path.exists(frame_1):
+        raise RuntimeError(f"frame_1 not found: {frame_1}")
+    if not os.path.exists(frame_2):
+        raise RuntimeError(f"frame_2 not found: {frame_2}")
+
+    logger.log(f"🖼️ Uploading frames: 1) {frame_1}  2) {frame_2}")
+
+    # Allow UI to render frame slots/inputs
+    file_inputs = []
+    slots = []
+    prompt_input = None
+    try:
+        prompt_input = find_prompt_input(driver, logger, timeout=5, reload_after=999)
+    except Exception:
+        prompt_input = None
+    end = time.time() + 8
+    while time.time() < end:
+        file_inputs = _find_file_inputs_deep(driver)
+        slots = _find_frame_slots(driver, logger)
+        if prompt_input:
+            near_slots = _find_frame_upload_buttons_near_prompt(driver, prompt_input)
+            if len(near_slots) >= 2:
+                slots = near_slots
+        if len(file_inputs) >= 1 or len(slots) >= 2:
+            break
+        time.sleep(0.4)
+    logger.log(f"🔍 File inputs found: {len(file_inputs)} | Frame slots found: {len(slots)}")
+
+    if len(file_inputs) >= 2:
+        _send_file_to_input(driver, file_inputs[0], frame_1, logger)
+        _maybe_confirm_crop(driver, logger)
+        time.sleep(0.6)
+        _send_file_to_input(driver, file_inputs[1], frame_2, logger)
+        _maybe_confirm_crop(driver, logger)
+        time.sleep(1.0)
+        logger.log("✅ Frames uploaded via two file inputs")
+        return
+
+    if len(file_inputs) == 1:
+        multi = (file_inputs[0].get_attribute("multiple") or "").lower() in ("true", "multiple", "")
+        try:
+            if file_inputs[0].get_attribute("multiple") is not None:
+                multi = True
+        except Exception:
+            pass
+        if multi:
+            _send_file_to_input(driver, file_inputs[0], f"{frame_1}\n{frame_2}", logger)
+            _maybe_confirm_crop(driver, logger)
+            time.sleep(1.0)
+            logger.log("✅ Frames uploaded via single multi-file input")
+            return
+
+    # Fallback: click frame slots/buttons in order, then upload
+    if len(slots) >= 2:
+        for idx, (slot, path) in enumerate(zip(slots[:2], [frame_1, frame_2]), start=1):
+            logger.log(f"🖼️ Uploading frame {idx} via slot click...")
+            hard_click_user(driver, slot, logger)
+            time.sleep(0.4)
+            current_inputs = _wait_for_file_input_after_click(driver, timeout=8)
+            if current_inputs:
+                _send_file_to_input(driver, current_inputs[0], path, logger)
+                _maybe_confirm_crop(driver, logger)
+                time.sleep(0.8)
+            else:
+                raise RuntimeError("Could not find file input after clicking frame slot")
+        logger.log("✅ Frames uploaded via slot click")
+        return
+
+    # Last resort: try clicking upload triggers then look for inputs
+    triggers = _find_upload_triggers(driver)
+    if not triggers and prompt_input:
+        triggers = _find_buttons_near_prompt_sorted(driver, prompt_input)
+    if triggers:
+        logger.log(f"🔍 Found {len(triggers)} upload triggers; attempting sequential upload")
+        for idx, path in enumerate([frame_1, frame_2], start=1):
+            target = triggers[min(idx - 1, len(triggers) - 1)]
+            hard_click_user(driver, target, logger)
+            time.sleep(0.6)
+            after = _wait_for_file_input_after_click(driver, timeout=8)
+            input_el = after[0] if after else None
+            if not input_el:
+                raise RuntimeError("Could not find file input after clicking upload trigger")
+            _send_file_to_input(driver, input_el, path, logger)
+            _maybe_confirm_crop(driver, logger)
+            time.sleep(0.8)
+        logger.log("✅ Frames uploaded via upload triggers")
+        return
+
+    raise RuntimeError("Could not find file inputs or frame slots for Frames to Video upload")
+
+
+def _find_file_inputs(driver) -> list:
+    inputs = []
+    try:
+        candidates = driver.find_elements(By.CSS_SELECTOR, "input[type='file']")
+        for el in candidates:
+            try:
+                if not el.is_enabled():
+                    continue
+                accept = (el.get_attribute("accept") or "").lower()
+                if accept and "image" not in accept and "png" not in accept and "jpg" not in accept and "jpeg" not in accept:
+                    # Ignore non-image file inputs
+                    continue
+                inputs.append(el)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return inputs
+
+
+def _find_file_inputs_deep(driver) -> list:
+    """Find file inputs including those inside open shadow roots."""
+    try:
+        return driver.execute_script(
+            """
+            const results = [];
+            const seen = new Set();
+            const add = (el) => {
+              if (!el || seen.has(el)) return;
+              seen.add(el);
+              results.push(el);
+            };
+            const walk = (root) => {
+              if (!root) return;
+              if (root.querySelectorAll) {
+                root.querySelectorAll('input[type="file"]').forEach(add);
+                root.querySelectorAll('*').forEach((el) => {
+                  if (el.shadowRoot) walk(el.shadowRoot);
+                });
+              }
+            };
+            walk(document);
+            return results;
+            """
+        )
+    except Exception:
+        return _find_file_inputs(driver)
+
+
+def _send_file_to_input(driver, input_el, file_path: str, logger: RunLogger) -> None:
+    try:
+        driver.execute_script(
+            "arguments[0].style.display = 'block'; arguments[0].style.visibility = 'visible';",
+            input_el,
+        )
+    except Exception:
+        pass
+    input_el.send_keys(file_path)
+    logger.log("✅ File path sent to input")
+
+
+def _find_frame_slots(driver, logger: RunLogger) -> list:
+    """Try to locate clickable frame slots/buttons for Frame 1/Frame 2."""
+    slots: list = []
+    selectors = [
+        (By.XPATH, "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'frame 1')]"),
+        (By.XPATH, "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'frame 2')]"),
+        (By.XPATH, "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'first frame')]"),
+        (By.XPATH, "//button[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'last frame')]"),
+        (By.XPATH, "//*[@role='button' and contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'frame 1')]"),
+        (By.XPATH, "//*[@role='button' and contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'frame 2')]"),
+        (By.XPATH, "//*[@role='button' and contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'first frame')]"),
+        (By.XPATH, "//*[@role='button' and contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'last frame')]"),
+        (By.CSS_SELECTOR, "button[aria-label*='frame' i]"),
+        (By.CSS_SELECTOR, "[role='button'][aria-label*='frame' i]"),
+    ]
+    for by, sel in selectors:
+        try:
+            items = driver.find_elements(by, sel)
+            for el in items:
+                tag = (el.tag_name or "").lower()
+                if tag in ("html", "body"):
+                    continue
+                if el.is_displayed() and el.is_enabled():
+                    if el not in slots:
+                        slots.append(el)
+        except Exception:
+            continue
+    # If we found too many, keep order of appearance (first two)
+    if slots:
+        logger.log(f"🔍 Found {len(slots)} potential frame slots")
+    return slots
+
+
+def _find_upload_triggers(driver) -> list:
+    """Find clickable elements likely to open an image upload dialog."""
+    try:
+        return driver.execute_script(
+            """
+            const triggers = [];
+            const seen = new Set();
+            const isVisible = (el) => {
+              if (!el) return false;
+              const rect = el.getBoundingClientRect();
+              if (rect.width <= 0 || rect.height <= 0) return false;
+              const style = window.getComputedStyle(el);
+              if (style.visibility === 'hidden' || style.display === 'none') return false;
+              return true;
+            };
+            const labels = ['add frame','upload','add image','add photo','select image','choose image','first frame','last frame','start frame','end frame','frame 1','frame 2','plus','add'];
+            const scan = (root) => {
+              if (!root || !root.querySelectorAll) return;
+              const nodes = Array.from(root.querySelectorAll('button, [role=\"button\"], [aria-label]'));
+              for (const el of nodes) {
+                if (!isVisible(el)) continue;
+                const rawText = (el.innerText || '').trim();
+                const text = (rawText + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.getAttribute('title') || '') + ' ' + (el.getAttribute('data-testid') || '')).toLowerCase();
+                const hasLabel = labels.some(l => text.includes(l)) || rawText === '+' || rawText === '＋';
+                if (!hasLabel) continue;
+                if (seen.has(el)) continue;
+                seen.add(el);
+                triggers.push(el);
+              }
+              const all = root.querySelectorAll('*');
+              for (const el of all) {
+                if (el.shadowRoot) scan(el.shadowRoot);
+              }
+            };
+            scan(document);
+            return triggers;
+            """
+        )
+    except Exception:
+        return []
+
+
+def _find_frame_upload_buttons_near_prompt(driver, input_field) -> list:
+    """Look for small add/upload buttons near the prompt input."""
+    try:
+        return driver.execute_script(
+            """
+            const input = arguments[0];
+            if (!input) return [];
+            const isVisible = (el) => {
+              if (!el) return false;
+              const rect = el.getBoundingClientRect();
+              if (rect.width <= 0 || rect.height <= 0) return false;
+              const style = window.getComputedStyle(el);
+              if (style.visibility === 'hidden' || style.display === 'none') return false;
+              return true;
+            };
+            const root = input.closest('form') || input.parentElement;
+            if (!root) return [];
+            const buttons = Array.from(root.querySelectorAll('button, [role=\"button\"]')).filter(isVisible);
+            const labels = ['add frame','upload','add image','add photo','select image','choose image','first frame','last frame','start frame','end frame','frame 1','frame 2','plus','add'];
+            const matches = [];
+            for (const btn of buttons) {
+              const text = ((btn.innerText || '') + ' ' + (btn.getAttribute('aria-label') || '') + ' ' + (btn.getAttribute('title') || '') + ' ' + (btn.getAttribute('data-testid') || '')).toLowerCase();
+              if (text.includes('swap')) continue;
+              if (labels.some(l => text.includes(l)) || text.trim() === '+' || text.trim() === '＋') {
+                const rect = btn.getBoundingClientRect();
+                matches.push({el: btn, left: rect.left});
+              }
+            }
+            matches.sort((a, b) => a.left - b.left);
+            return matches.map(x => x.el);
+            """,
+            input_field,
+        )
+    except Exception:
+        return []
+
+
+def _wait_for_file_input_after_click(driver, timeout: int = 8) -> list:
+    end = time.time() + timeout
+    while time.time() < end:
+        inputs = _find_file_inputs_deep(driver)
+        if inputs:
+            return inputs
+        time.sleep(0.3)
+    return []
+
+
+def _frames_ui_ready(driver) -> bool:
+    try:
+        return bool(
+            driver.execute_script(
+                """
+                const textarea = document.querySelector('textarea');
+                if (textarea) {
+                  const ph = (textarea.getAttribute('placeholder') || '').toLowerCase();
+                  if (ph.includes('frames')) return true;
+                }
+                const texts = ['first frame','last frame','add start frame','add end frame','replace start frame','replace end frame'];
+                const candidates = Array.from(document.querySelectorAll('button, [role=\"button\"], [aria-label]'));
+                for (const el of candidates) {
+                  const t = ((el.innerText || '') + ' ' + (el.getAttribute('aria-label') || '')).toLowerCase();
+                  if (texts.some(x => t.includes(x))) return true;
+                }
+                return false;
+                """
+            )
+        )
+    except Exception:
+        return False
+
+
+def hard_click_user(driver, el, logger: RunLogger | None = None):
+    """Click that favors real user gestures (ActionChains first)."""
+    if logger:
+        logger.log(f"🖱️ Attempting hard_click_user on {el.tag_name}")
+    strategies = [
+        ("action_chain", lambda: ActionChains(driver).move_to_element(el).click().perform()),
+        ("normal_click", lambda: el.click()),
+        ("pointer_event", lambda: driver.execute_script(
+            """
+            arguments[0].dispatchEvent(new PointerEvent('pointerdown', {bubbles: true}));
+            arguments[0].dispatchEvent(new PointerEvent('pointerup', {bubbles: true}));
+            arguments[0].dispatchEvent(new MouseEvent('click', {bubbles: true}));
+            """,
+            el
+        )),
+        ("js_click", lambda: driver.execute_script("arguments[0].click();", el)),
+    ]
+    for name, strategy in strategies:
+        try:
+            strategy()
+            time.sleep(0.3)
+            if logger:
+                logger.log(f"✅ Click succeeded via {name}")
+            return True
+        except Exception as e:
+            if logger:
+                logger.log(f"⚠️ {name} failed: {e}")
+            continue
+    if logger:
+        logger.log("❌ All click strategies failed (hard_click_user)")
+    return False
+
+
+def _find_buttons_near_prompt_sorted(driver, input_field) -> list:
+    """Find visible buttons near the prompt input, sorted left-to-right."""
+    try:
+        return driver.execute_script(
+            """
+            const input = arguments[0];
+            if (!input) return [];
+            const isVisible = (el) => {
+              if (!el) return false;
+              const rect = el.getBoundingClientRect();
+              if (rect.width <= 0 || rect.height <= 0) return false;
+              const style = window.getComputedStyle(el);
+              if (style.visibility === 'hidden' || style.display === 'none') return false;
+              return true;
+            };
+            const root = input.closest('form') || input.parentElement;
+            if (!root) return [];
+            const buttons = Array.from(root.querySelectorAll('button, [role=\"button\"]')).filter(isVisible);
+            const cleaned = [];
+            for (const btn of buttons) {
+              const rect = btn.getBoundingClientRect();
+              const text = ((btn.innerText || '') + ' ' + (btn.getAttribute('aria-label') || '') + ' ' + (btn.getAttribute('title') || '')).toLowerCase();
+              if (text.includes('generate') || text.includes('create') || text.includes('submit') || text.includes('send')) continue;
+              cleaned.push({el: btn, left: rect.left, width: rect.width, height: rect.height});
+            }
+            cleaned.sort((a, b) => a.left - b.left);
+            return cleaned.map(x => x.el);
+            """,
+            input_field,
+        )
+    except Exception:
+        return []
+
+
+def _maybe_confirm_crop(driver, logger: RunLogger, timeout: int = 20) -> None:
+    """If the crop dialog appears after upload, click 'Crop and Save'."""
+    logger.log("🔍 Checking for crop dialog...")
+    end = time.time() + timeout
+    crop_btn = None
+
+    selectors = [
+        (By.XPATH, "//button[contains(., 'Crop and Save')]"),
+        (By.XPATH, "//*[@role='button' and contains(., 'Crop and Save')]"),
+        (By.CSS_SELECTOR, "button[aria-label*='Crop and Save' i]"),
+    ]
+
+    while time.time() < end:
+        for by, sel in selectors:
+            try:
+                el = driver.find_element(by, sel)
+                if el.is_displayed() and el.is_enabled():
+                    crop_btn = el
+                    break
+            except Exception:
+                continue
+        if crop_btn:
+            break
+        time.sleep(0.3)
+
+    if not crop_btn:
+        logger.log("ℹ️ No crop dialog detected")
+        return
+
+    logger.log("✅ Crop dialog detected, clicking 'Crop and Save'...")
+    hard_click(driver, crop_btn, logger)
+
+    # Wait for dialog to close
+    try:
+        WebDriverWait(driver, 15).until(
+            EC.invisibility_of_element_located((By.XPATH, "//*[contains(., 'Crop your ingredient')]"))
+        )
+    except Exception:
+        pass
+
+
 def find_prompt_input(driver, logger: RunLogger, timeout=90, reload_after=25) -> object:
     """Find the prompt input field"""
     selectors = [
@@ -489,16 +1079,24 @@ def _loading_overlay_present(driver) -> bool:
 
 def submit_prompt(driver, prompt: str, logger: RunLogger):
     """Type and submit the prompt"""
+    input_field = fill_prompt(driver, prompt, logger)
+    click_submit(driver, logger, input_field)
+
+
+def fill_prompt(driver, prompt: str, logger: RunLogger):
+    """Find the prompt input and type the prompt (without submitting)."""
     logger.log("✍️ Finding prompt input...")
     input_field = find_prompt_input(driver, logger)
-    
-    # Clear and type
+
     logger.log("✍️ Typing prompt...")
     driver.execute_script("arguments[0].scrollIntoView({block:'center'});", input_field)
     if not _type_prompt_with_retry(driver, input_field, prompt, logger):
         raise RuntimeError("Prompt input remained empty after typing attempts")
-    
-    # Find and click submit button
+    return input_field
+
+
+def click_submit(driver, logger: RunLogger, input_field=None):
+    """Find and click submit button (fallback to Enter)."""
     logger.log("🔍 Finding submit button...")
     submit_selectors = [
         (By.CSS_SELECTOR, "button[type='submit']"),
@@ -508,7 +1106,7 @@ def submit_prompt(driver, prompt: str, logger: RunLogger):
         (By.CSS_SELECTOR, "button[aria-label*='generate' i]"),
         (By.CSS_SELECTOR, "button[aria-label*='submit' i]"),
     ]
-    
+
     for by, sel in submit_selectors:
         try:
             btn = driver.find_element(by, sel)
@@ -518,10 +1116,12 @@ def submit_prompt(driver, prompt: str, logger: RunLogger):
                     return
         except Exception:
             continue
-    
+
     # Fallback: try Enter key
     logger.log("⚠️ Submit button not found, trying Enter key...")
     try:
+        if not input_field:
+            input_field = find_prompt_input(driver, logger)
         input_field.send_keys(Keys.ENTER)
         logger.log("✅ Submitted via Enter key")
     except Exception as e:
@@ -751,24 +1351,31 @@ def _collect_video_srcs(driver) -> set[str]:
 
 
 def download_video(driver, logger: RunLogger, before_files: set[str]) -> tuple[bool, bool]:
-    """Download the generated video"""
+    """Download the generated video - IMPROVED VERSION"""
     logger.log("⬇️ Starting download...")
     
-    # Prefer download button tied to latest video tile
+    # Find download button tied to latest video
     target_video = _find_latest_video(driver)
     download_btn = _find_download_button_for_video(driver, target_video, logger)
-
+    
+    if not download_btn:
+        overflow_btn = _find_overflow_button_for_video(driver, target_video, logger)
+        if overflow_btn:
+            logger.log("🔍 Found overflow menu button in video tile")
+            return _download_via_overflow_button(driver, logger, overflow_btn, before_files)
+    
     if not download_btn:
         _focus_latest_media(driver, logger)
         download_btn = _find_download_button_for_video(driver, _find_latest_video(driver), logger)
+    
     if not download_btn:
         download_btn = _wait_for_download_button(driver, logger, timeout=20)
     
     if not download_btn:
-        logger.log("⚠️ Download button not found, trying overflow menu...")
-        return download_via_overflow_menu(driver, logger, before_files)
+        logger.log("⚠️ Download button not found")
+        return (False, False)
     
-    # Check if button opens a menu (aria-haspopup="menu")
+    # Check if button opens a menu
     is_menu_button = False
     try:
         aria_haspopup = (download_btn.get_attribute("aria-haspopup") or "").lower()
@@ -783,34 +1390,35 @@ def download_video(driver, logger: RunLogger, before_files: set[str]) -> tuple[b
         logger.log("❌ Failed to click download button")
         return (False, False)
     
-    time.sleep(1.5)
+    time.sleep(1.5)  # Wait for menu to appear
     
-    # If it's a menu button, immediately try to click the download menu item
-    # Otherwise, wait for download to start
-    started = False
+    # Handle menu or direct download
     if is_menu_button:
         logger.log("🔍 Looking for download menu item...")
-        if _open_menu_and_click_download(driver, logger, download_btn):
-            time.sleep(1.5)
-            started = wait_for_download_start(logger, before_files, timeout=16)
+        if _click_quality_menu_item_robust(driver, logger):
+            time.sleep(2)
+            started = wait_for_download_start(logger, before_files, timeout=60)
+            if started:
+                finished = wait_for_download_complete(logger)
+                return (started, finished)
         else:
             logger.log("⚠️ Could not find download menu item")
+            return (False, False)
     else:
-        # Quick check for download start (button may open a menu instead)
+        # Quick check for download start
         started = wait_for_download_start(logger, before_files, timeout=15)
         if not started:
             logger.log("💡 Download didn't start, trying menu fallback...")
-            if _open_menu_and_click_download(driver, logger, download_btn):
-                time.sleep(1.5)
-                started = wait_for_download_start(logger, before_files, timeout=16)
-    
-    if not started:
-        logger.log("⚠️ Download didn't start")
-        return (False, False)
-    
-    # Wait for download to complete
-    finished = wait_for_download_complete(logger)
-    return (started, finished)
+            if _click_quality_menu_item_robust(driver, logger):
+                time.sleep(2)
+                started = wait_for_download_start(logger, before_files, timeout=60)
+        
+        if not started:
+            logger.log("⚠️ Download didn't start")
+            return (False, False)
+        
+        finished = wait_for_download_complete(logger)
+        return (started, finished)
 
 
 def download_via_overflow_menu(driver, logger: RunLogger, before_files: set[str]) -> tuple[bool, bool]:
@@ -912,9 +1520,8 @@ def _wait_for_download_button(driver, logger: RunLogger, timeout=20):
 def _focus_latest_media(driver, logger: RunLogger) -> None:
     """Try to focus the most recent media tile to reveal download controls."""
     try:
-        videos = [v for v in driver.find_elements(By.CSS_SELECTOR, "video") if v.is_displayed()]
-        if videos:
-            target = videos[-1]
+        target = _find_latest_video(driver)
+        if target:
             ActionChains(driver).move_to_element(target).pause(0.2).perform()
             hard_click(driver, target, logger)
             logger.log("🎯 Focused latest video element")
@@ -924,228 +1531,254 @@ def _focus_latest_media(driver, logger: RunLogger) -> None:
         pass
 
 
-def _click_download_menu_item(driver, logger: RunLogger) -> bool:
-    """If the download control opens a menu, click the actual Download/Export item."""
-    menu_selectors = [
-        (By.XPATH, "//*[@role='menuitem' and contains(., 'Download')]"),
-        (By.XPATH, "//*[@role='menuitem' and contains(., 'Export')]"),
-        (By.XPATH, "//*[@role='menuitem' and contains(., 'Save')]"),
-        (By.XPATH, "//*[@role='menuitemradio' and contains(., 'Download')]"),
-        (By.XPATH, "//*[@role='menuitemradio' and contains(., 'Export')]"),
-        (By.XPATH, "//*[@role='menuitemradio' and contains(., 'Save')]"),
-        (By.XPATH, "//*[@data-radix-collection-item and contains(., 'Download')]"),
-        (By.XPATH, "//*[@data-radix-collection-item and contains(., 'Export')]"),
-        (By.XPATH, "//*[@role='menu']//*[contains(., 'Download')]"),
-        (By.XPATH, "//*[@role='menu']//*[contains(., 'Export')]"),
+def _click_quality_menu_item_robust(driver, logger: RunLogger, max_attempts: int = 5) -> bool:
+    """
+    ROBUST menu item clicking - handles the exact menu shown in VEO
+    Tries multiple strategies to find and click quality/download options
+    """
+    logger.log("🔍 Searching for menu items (robust method)...")
+
+    quality_options = [
+        "original size",
+        "720p",
+        "original",
+        "1080p",
+        "upscaled",
+        "4k",
+        "animated gif",
+        "gif",
+        "270p",
+    ]
+
+    download_keywords = ["download", "export", "save"]
+
+    for attempt in range(max_attempts):
+        logger.log(f"🔄 Attempt {attempt + 1}/{max_attempts}")
+
+        # Progressive wait for menu to appear
+        time.sleep(0.5 + (attempt * 0.3))
+
+        menu_item_selectors = [
+            "[role='menuitem']",
+            "[role='menuitemradio']",
+            "[role='menuitemcheckbox']",
+            "[role='option']",
+            "[data-radix-collection-item]",
+            "[role='menu'] button",
+            "[role='menu'] div[role='button']",
+            "button",
+            "div[role='button']",
+        ]
+
+        all_items = []
+        for selector in menu_item_selectors:
+            try:
+                items = driver.find_elements(By.CSS_SELECTOR, selector)
+                visible_items = [item for item in items if item.is_displayed()]
+                all_items.extend(visible_items)
+            except Exception:
+                continue
+
+        # Remove duplicates
+        unique_items = []
+        seen_ids = set()
+        for item in all_items:
+            try:
+                item_id = item.id
+                if item_id in seen_ids:
+                    continue
+                seen_ids.add(item_id)
+            except Exception:
+                pass
+            unique_items.append(item)
+
+        logger.log(f"📋 Found {len(unique_items)} potential menu items")
+
+        if not unique_items:
+            logger.log("⚠️ No menu items found, waiting...")
+            continue
+
+        for idx, item in enumerate(unique_items[:10]):
+            try:
+                text = (item.text or "").strip()
+                aria = (item.get_attribute("aria-label") or "").strip()
+                logger.log(f"  [{idx}] text='{text}' aria='{aria}'")
+            except Exception:
+                pass
+
+        for quality in quality_options:
+            for item in unique_items:
+                try:
+                    if not item.is_displayed():
+                        continue
+                    text = (item.text or "").lower()
+                    aria = (item.get_attribute("aria-label") or "").lower()
+                    combined = f"{text} {aria}"
+                    if quality in combined:
+                        logger.log(f"✅ Found quality option: '{quality}' in '{text or aria}'")
+                        if _multi_strategy_click(driver, item, logger):
+                            logger.log(f"✅ Successfully clicked: {quality}")
+                            return True
+                        else:
+                            logger.log(f"⚠️ Click failed for: {quality}, trying next...")
+                except Exception as e:
+                    logger.log(f"⚠️ Error checking item: {e}")
+                    continue
+
+        for keyword in download_keywords:
+            for item in unique_items:
+                try:
+                    if not item.is_displayed():
+                        continue
+                    text = (item.text or "").lower()
+                    aria = (item.get_attribute("aria-label") or "").lower()
+                    combined = f"{text} {aria}"
+                    if keyword in combined:
+                        logger.log(f"✅ Found download option: '{keyword}' in '{text or aria}'")
+                        if _multi_strategy_click(driver, item, logger):
+                            logger.log(f"✅ Successfully clicked: {keyword}")
+                            return True
+                except Exception:
+                    continue
+
+        if attempt >= 2:
+            logger.log("🔧 Trying JavaScript fallback...")
+            try:
+                clicked = driver.execute_script(
+                    """
+                    const keywords = arguments[0];
+                    const isVisible = (el) => {
+                        if (!el) return false;
+                        const rect = el.getBoundingClientRect();
+                        if (rect.width <= 0 || rect.height <= 0) return false;
+                        const style = window.getComputedStyle(el);
+                        return style.visibility !== 'hidden' && style.display !== 'none';
+                    };
+                    const selectors = [
+                        '[role=\"menuitem\"]',
+                        '[role=\"menuitemradio\"]',
+                        '[role=\"option\"]',
+                        '[data-radix-collection-item]',
+                        'button',
+                        'div[role=\"button\"]'
+                    ];
+                    const items = [];
+                    for (const sel of selectors) {
+                        document.querySelectorAll(sel).forEach(el => {
+                            if (isVisible(el)) items.push(el);
+                        });
+                    }
+                    for (const keyword of keywords) {
+                        for (const item of items) {
+                            const text = ((item.innerText || '') + ' ' + (item.getAttribute('aria-label') || '')).toLowerCase();
+                            if (text.includes(keyword)) {
+                                item.click();
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                    """,
+                    quality_options + download_keywords,
+                )
+                if clicked:
+                    logger.log("✅ JavaScript click succeeded")
+                    return True
+            except Exception as e:
+                logger.log(f"⚠️ JavaScript fallback failed: {e}")
+
+        logger.log(f"⚠️ Attempt {attempt + 1} failed, retrying...")
+
+    logger.log("❌ All attempts to click menu item failed")
+    save_debug(driver, logger, "menu_click_failed")
+    return False
+
+
+def _multi_strategy_click(driver, element, logger: RunLogger) -> bool:
+    """Try multiple click strategies on an element"""
+    strategies = [
+        ("direct_click", lambda: element.click()),
+        ("js_click", lambda: driver.execute_script("arguments[0].click();", element)),
+        ("action_chains", lambda: ActionChains(driver).move_to_element(element).click().perform()),
+        ("force_js_click", lambda: driver.execute_script(
+            """
+            arguments[0].dispatchEvent(new MouseEvent('click', {
+                bubbles: true,
+                cancelable: true,
+                view: window
+            }));
+            """, element
+        )),
+        ("pointer_events", lambda: driver.execute_script(
+            """
+            const el = arguments[0];
+            el.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true}));
+            el.dispatchEvent(new PointerEvent('pointerup', {bubbles: true}));
+            el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+            """, element
+        )),
     ]
     
-    logger.log("🔍 Searching for download menu item...")
-    for by, sel in menu_selectors:
+    for name, strategy in strategies:
         try:
-            opt = driver.find_element(by, sel)
-            if opt.is_displayed():
-                logger.log(f"✅ Found menu item with selector: {sel}")
-                if hard_click(driver, opt, logger):
-                    logger.log("✅ Clicked download menu item")
-                    return True
-        except Exception:
-            continue
-    
-    # Fallback: scan all visible menu items
-    logger.log("⚠️ Specific selectors failed, scanning all menu items...")
-    
-    # Try multiple times in case items are still loading
-    max_scan_attempts = 3
-    items = []
-    
-    for attempt in range(max_scan_attempts):
-        try:
-            items = driver.find_elements(
-                By.CSS_SELECTOR,
-                "[role='menuitem'], [role='menuitemradio'], [role='menuitemcheckbox'], [data-radix-collection-item]",
-            )
-            visible_items = [item for item in items if item.is_displayed()]
-            
-            if visible_items:
-                logger.log(f"📋 Found {len(visible_items)} menu items")
-                items = visible_items
-                break
-            else:
-                logger.log(f"⏳ No visible items yet (scan attempt {attempt + 1}/{max_scan_attempts})")
-                if attempt < max_scan_attempts - 1:
-                    time.sleep(0.4)
-        except Exception as e:
-            logger.log(f"⚠️ Error scanning menu items: {e}")
-            if attempt < max_scan_attempts - 1:
-                time.sleep(0.4)
-    
-    if not items:
-        logger.log(f"📋 Found {len(items)} menu items after all attempts")
-        logger.log("❌ No menu items could be found")
-        return False
-    
-    # Quality/format selection keywords (VEO often shows quality options instead of "Download")
-    quality_keywords = ["original", "720p", "1080p", "4k", "upscaled", "capture", "gif"]
-    download_keywords = ["download", "export", "save"]
-    
-    # First pass: look for explicit download/export/save
-    for item in items:
-        try:
-            if not item.is_displayed():
-                continue
-            text = (item.text or "").lower()
-            aria = (item.get_attribute("aria-label") or "").lower()
-            combined = f"{text} {aria}"
-            logger.log(f"  - Menu item: '{text}' (aria: '{aria}')")
-            if any(keyword in combined for keyword in download_keywords):
-                logger.log(f"✅ Found download match: {text}")
-                if hard_click(driver, item, logger):
-                    logger.log("✅ Clicked download menu item")
-                    return True
-        except Exception as e:
-            logger.log(f"⚠️ Error checking menu item: {e}")
-            continue
-    
-    # Second pass: if no explicit download found, look for quality options
-    # Prefer "original" or "720p" for best quality without upscaling
-    logger.log("🎬 No explicit download found, looking for quality/format options...")
-    preferred_order = ["original", "720p", "1080p", "4k", "gif"]
-    
-    for preference in preferred_order:
-        for item in items:
-            try:
-                if not item.is_displayed():
-                    continue
-                text = (item.text or "").lower()
-                aria = (item.get_attribute("aria-label") or "").lower()
-                combined = f"{text} {aria}"
-                
-                if preference in combined:
-                    logger.log(f"✅ Found quality option: '{text}' (preference: {preference})")
-                    if hard_click(driver, item, logger):
-                        logger.log(f"✅ Clicked quality option: {preference}")
-                        return True
-            except Exception as e:
-                logger.log(f"⚠️ Error clicking quality option: {e}")
-                continue
-    
-    logger.log("❌ No download menu item found")
-    return False
-
-
-def _open_menu_and_click_download(driver, logger: RunLogger, download_btn) -> bool:
-    """Ensure menu is open for the download trigger, then click download item."""
-    try:
-        aria = (download_btn.get_attribute("aria-haspopup") or "").lower()
-        if aria != "menu":
-            logger.log("🔍 Button doesn't specify menu, trying direct click...")
-            return _click_download_menu_item(driver, logger)
-    except Exception:
-        return _click_download_menu_item(driver, logger)
-
-    # Try to open the menu reliably
-    logger.log("📂 Opening download menu...")
-    try:
-        driver.execute_script(
-            """
-            const btn = arguments[0];
-            btn.scrollIntoView({block:'center', inline:'center'});
-            const rect = btn.getBoundingClientRect();
-            const el = document.elementFromPoint(rect.left + rect.width/2, rect.top + rect.height/2);
-            if (el && el !== btn) {
-              el.style.pointerEvents = 'none';
-            }
-            """,
-            download_btn,
-        )
-        ActionChains(driver).move_to_element(download_btn).pause(0.1).click().perform()
-        logger.log("✅ Menu clicked via ActionChains")
-    except Exception as e:
-        logger.log(f"⚠️ ActionChains failed: {e}, trying JS click...")
-        try:
-            driver.execute_script("arguments[0].click();", download_btn)
-            logger.log("✅ Menu clicked via JS")
-        except Exception as e2:
-            logger.log(f"❌ JS click also failed: {e2}")
-            pass
-
-    # Wait briefly for a menu to appear
-    logger.log("⏳ Waiting for menu to appear...")
-    end = time.time() + 8
-    menu_found = False
-    while time.time() < end:
-        try:
-            menus = driver.find_elements(By.CSS_SELECTOR, "[role='menu']")
-            if any(m.is_displayed() for m in menus):
-                logger.log("✅ Menu appeared")
-                menu_found = True
-                break
-        except Exception:
-            pass
-        time.sleep(0.2)
-    
-    if not menu_found:
-        logger.log("⚠️ Menu didn't appear, trying to find menu items anyway...")
-    else:
-        # Wait a bit longer for menu items to render inside the menu
-        logger.log("⏳ Waiting for menu items to load...")
-        time.sleep(0.8)
-        
-        # Verify items are actually present
-        max_retries = 3
-        for retry in range(max_retries):
-            try:
-                items = driver.find_elements(
-                    By.CSS_SELECTOR,
-                    "[role='menuitem'], [role='menuitemradio'], [role='menuitemcheckbox'], [data-radix-collection-item]",
-                )
-                visible_items = [item for item in items if item.is_displayed()]
-                if visible_items:
-                    logger.log(f"✅ Found {len(visible_items)} menu items ready")
-                    break
-                else:
-                    logger.log(f"⏳ No items yet (attempt {retry + 1}/{max_retries}), waiting...")
-                    time.sleep(0.3)
-            except Exception:
-                time.sleep(0.3)
-
-    # Click the menu item
-    if _click_download_menu_item(driver, logger):
-        return True
-
-    # Fallback: click via JS by text match
-    logger.log("🔄 Trying JS fallback to find Download in menu items...")
-    try:
-        clicked = driver.execute_script(
-            """
-            const items = Array.from(document.querySelectorAll('[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [data-radix-collection-item], [role="menu"] *'));
-            for (const el of items) {
-              const t = (el.innerText || '').toLowerCase();
-              if (t.includes('download') || t.includes('export') || t.includes('save') || t.includes('original') || t.includes('720p')) {
-                el.click();
-                return true;
-              }
-            }
-            return false;
-            """
-        )
-        if clicked:
-            logger.log("✅ Clicked download menu item via JS")
+            strategy()
+            time.sleep(0.3)
+            logger.log(f"  ✅ Click succeeded via {name}")
             return True
-        else:
-            logger.log("⚠️ No download menu item found via JS")
-    except Exception as e:
-        logger.log(f"❌ JS fallback failed: {e}")
-        pass
-
+        except Exception as e:
+            logger.log(f"  ⚠️ {name} failed: {str(e)[:100]}")
+            continue
+    
     return False
+
+
+def _download_via_overflow_button(
+    driver, logger: RunLogger, overflow_btn, before_files: set[str]
+) -> tuple[bool, bool]:
+    """Download via overflow/three-dot menu button"""
+    logger.log("📂 Opening overflow menu...")
+    
+    if not hard_click(driver, overflow_btn, logger):
+        logger.log("❌ Failed to click overflow button")
+        return (False, False)
+    
+    time.sleep(1.5)
+    
+    if _click_quality_menu_item_robust(driver, logger):
+        time.sleep(2)
+        started = wait_for_download_start(logger, before_files, timeout=60)
+        if started:
+            finished = wait_for_download_complete(logger)
+            return (started, finished)
+    
+    logger.log("❌ Could not download via overflow menu")
+    return (False, False)
 
 
 def _find_latest_video(driver):
     try:
         videos = [v for v in driver.find_elements(By.CSS_SELECTOR, "video") if v.is_displayed()]
-        if videos:
-            return videos[-1]
+        if not videos:
+            return None
+
+        # Prefer the most recent tile shown at the top of the list/grid
+        scored = []
+        for v in videos:
+            try:
+                rect = driver.execute_script(
+                    "const r = arguments[0].getBoundingClientRect(); return {top:r.top,left:r.left,width:r.width,height:r.height};",
+                    v,
+                )
+                if not rect:
+                    continue
+                scored.append((rect.get("top", 0), rect.get("left", 0), v))
+            except Exception:
+                continue
+
+        if scored:
+            scored.sort(key=lambda t: (t[0], t[1]))
+            return scored[0][2]
+        return videos[0]
     except Exception:
         return None
     return None
@@ -1167,6 +1800,7 @@ def _find_download_button_for_video(driver, video_el, logger: RunLogger):
                                (b.getAttribute('title') || '') + ' ' +
                                (b.innerText || '')).toLowerCase();
                 if (label.includes('download') && !label.includes('more')) return b;
+                if (label.includes('export') || label.includes('save')) return b;
               }
               return null;
             }
@@ -1187,26 +1821,54 @@ def _find_download_button_for_video(driver, video_el, logger: RunLogger):
         pass
     return None
 
+
+def _find_overflow_button_for_video(driver, video_el, logger: RunLogger):
+    if not video_el:
+        return None
     try:
-        tiles = driver.find_elements(By.CSS_SELECTOR, "[role='button'], [data-testid*='tile' i]")
-        for el in reversed(tiles):
-            try:
-                if el.is_displayed():
-                    ActionChains(driver).move_to_element(el).pause(0.1).perform()
-                    hard_click(driver, el, logger)
-                    logger.log("🎯 Focused latest media tile")
-                    time.sleep(0.8)
-                    return
-            except Exception:
-                continue
+        btn = driver.execute_script(
+            """
+            const video = arguments[0];
+            function findOverflow(root) {
+              if (!root) return null;
+              const btns = root.querySelectorAll('button, [role="button"]');
+              for (const b of btns) {
+                const label = ((b.getAttribute('aria-label') || '') + ' ' +
+                               (b.getAttribute('title') || '') + ' ' +
+                               (b.innerText || '')).toLowerCase();
+                if (label.includes('more') || label.includes('options') || label.includes('menu')) return b;
+              }
+              return null;
+            }
+            let el = video;
+            while (el) {
+              const found = findOverflow(el);
+              if (found) return found;
+              el = el.parentElement;
+            }
+            return null;
+            """,
+            video_el,
+        )
+        if btn:
+            logger.log("✅ Found overflow/menu button in video tile")
+            return btn
     except Exception:
         pass
+    return None
 
 
 # ==============================
 # MAIN WORKFLOW
 # ==============================
-def run_veo_autopilot(prompt: str, row_id: str | None, story_id: str, scene: int):
+def run_veo_autopilot(
+    prompt: str,
+    row_id: str | None,
+    story_id: str,
+    scene: int,
+    frame_1: str | None = None,
+    frame_2: str | None = None,
+):
     """Main Veo autopilot workflow"""
     logger = RunLogger(row_id)
     driver = None
@@ -1218,6 +1880,8 @@ def run_veo_autopilot(prompt: str, row_id: str | None, story_id: str, scene: int
         logger.log(f"🚀 Starting VEO Autopilot for Story={story_id} Scene={scene}")
         logger.log(f"📝 Prompt: {prompt[:100]}...")
         logger.log(f"🔗 Project URL: {project_url}")
+        if frame_1 or frame_2:
+            logger.log(f"🖼️ Frames: frame_1={frame_1 or ''} frame_2={frame_2 or ''}")
         
         # Initialize driver
         driver = build_driver(logger)
@@ -1225,8 +1889,18 @@ def run_veo_autopilot(prompt: str, row_id: str | None, story_id: str, scene: int
         # Navigate to project
         navigate_to_project(driver, logger, project_url)
         
-        # Submit prompt
-        submit_prompt(driver, prompt, logger)
+        # If frames are provided, switch to Frames to Video mode and upload images
+        use_frames = bool(frame_1 or frame_2)
+        if use_frames:
+            if not (frame_1 and frame_2):
+                raise RuntimeError("Frames to Video requires both frame_1 and frame_2")
+            ensure_frames_mode(driver, logger)
+            fill_prompt(driver, prompt, logger)
+            upload_frame_images(driver, logger, frame_1, frame_2)
+            click_submit(driver, logger)
+        else:
+            # Default: Text to Video
+            submit_prompt(driver, prompt, logger)
         
         # Wait after submit
         logger.log(f"⏳ Waiting {POST_SUBMIT_WAIT_SECONDS}s after submit...")
@@ -1298,6 +1972,7 @@ def run_veo_autopilot(prompt: str, row_id: str | None, story_id: str, scene: int
             "log_file": logger.path,
             "download_dir": DOWNLOAD_DIR,
             "elapsed": elapsed,
+            "frames_mode": use_frames,
         }
         
         print("__RESULT__=" + json.dumps(result))
@@ -1334,15 +2009,17 @@ def run_veo_autopilot(prompt: str, row_id: str | None, story_id: str, scene: int
 def main():
     # Arguments: prompt, row_id, story_id, scene
     if len(sys.argv) < 5:
-        print("Usage: python veo_autopilot.py <prompt> <row_id> <story_id> <scene>")
+        print("Usage: python veo_autopilot.py <prompt> <row_id> <story_id> <scene> [frame_1] [frame_2]")
         sys.exit(1)
     
     prompt = sys.argv[1]
     row_id = sys.argv[2]
     story_id = sys.argv[3]
     scene = int(sys.argv[4])
+    frame_1 = sys.argv[5] if len(sys.argv) > 5 else None
+    frame_2 = sys.argv[6] if len(sys.argv) > 6 else None
     
-    sys.exit(run_veo_autopilot(prompt, row_id, story_id, scene))
+    sys.exit(run_veo_autopilot(prompt, row_id, story_id, scene, frame_1=frame_1, frame_2=frame_2))
 
 
 if __name__ == "__main__":

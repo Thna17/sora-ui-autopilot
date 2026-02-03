@@ -97,6 +97,9 @@ class Job(BaseModel):
     rowId: Optional[Union[str, int]] = None
     webhookUrl: Optional[str] = None
     chromeProfile: Optional[str] = None
+    frame_1: Optional[str] = None
+    frame_2: Optional[str] = None
+    project_url: Optional[str] = None  
 
 
 def run_job_background(job_id: str, job: Job):
@@ -106,6 +109,10 @@ def run_job_background(job_id: str, job: Job):
         row_id = str(job.rowId).strip() if job.rowId is not None else ""
         prompt = (job.prompt or "").strip()
         chrome_profile = (job.chromeProfile or "").strip()
+        frame_1 = (job.frame_1 or "").strip()
+        frame_2 = (job.frame_2 or "").strip()
+        project_url = (job.project_url or "").strip()
+
 
         JOBS[job_id]["status"] = "running"
         JOBS[job_id]["started_at"] = time.time()
@@ -129,13 +136,18 @@ def run_job_background(job_id: str, job: Job):
 
         # Dispatch logic based on profile name prefix
         target_script = SORA_SCRIPT
-        if chrome_profile and chrome_profile.lower().startswith("veo"):
+        is_veo_profile = chrome_profile and chrome_profile.lower().startswith(("veo", "flow"))
+        wants_frames = bool(frame_1 or frame_2)
+        if is_veo_profile or wants_frames:
             target_script = VEO_SCRIPT
-            print(f"[Dispatcher] Profile starts with 'veo' -> Using VEO_SCRIPT: {target_script}", flush=True)
+            reason = "profile prefix" if is_veo_profile else "frame inputs"
+            print(f"[Dispatcher] Using VEO_SCRIPT ({reason}): {target_script}", flush=True)
         else:
             print(f"[Dispatcher] Using SORA_SCRIPT: {target_script}", flush=True)
 
         cmd = [PYTHON, target_script, prompt, row_id, story_id, str(scene)]
+        if target_script == VEO_SCRIPT and frame_1 and frame_2:
+            cmd.extend([frame_1, frame_2])
         print(f"[Job {job_id}] Running: {' '.join(cmd[:2])} ...", flush=True)
         proc = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
